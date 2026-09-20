@@ -1,0 +1,42 @@
+services:
+  wehentimer-frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_POCKETBASE_URL: ${VITE_POCKETBASE_URL}
+    container_name: wehentimer-frontend
+    restart: unless-stopped
+    networks:
+      - proxy
+    # Fallback, falls kein gemeinsames Docker-Netzwerk mit dem nginx Proxy
+    # Manager genutzt werden kann: Host-Port statt "networks" freigeben.
+    # Bewusst NICHT 80/8080 (Konflikt-Gefahr) - siehe INITIAL_DEPLOYMENT.md.
+    # ports:
+    #   - "8082:80"
+
+  wehentimer-pocketbase:
+    build:
+      context: ./pocketbase
+      dockerfile: Dockerfile
+      args:
+        PB_VERSION: 0.39.10
+    container_name: wehentimer-pocketbase
+    restart: unless-stopped
+    volumes:
+      - pb_data:/pb/pb_data
+    networks:
+      - proxy
+    # Fallback ohne gemeinsames Docker-Netzwerk (siehe oben):
+    # ports:
+    #   - "8092:8090"
+
+networks:
+  proxy:
+    external: true
+    # Name des Docker-Netzwerks, in dem auch der nginx Proxy Manager läuft
+    # (siehe INITIAL_DEPLOYMENT.md, Abschnitt "Docker-Netzwerk ermitteln").
+    name: ${PROXY_NETWORK_NAME}
+
+volumes:
+  pb_data:
