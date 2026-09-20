@@ -3,17 +3,14 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      args:
-        VITE_POCKETBASE_URL: ${VITE_POCKETBASE_URL}
     container_name: wehentimer-frontend
     restart: unless-stopped
-    networks:
-      - proxy
-    # Fallback, falls kein gemeinsames Docker-Netzwerk mit dem nginx Proxy
-    # Manager genutzt werden kann: Host-Port statt "networks" freigeben.
+    # Kein gemeinsames Docker-Netzwerk mit dem nginx Proxy Manager (der NPM-
+    # Container wird bewusst nicht angefasst) - stattdessen Host-Port, NPM
+    # zeigt per "Forward Hostname/IP" auf die NAS-LAN-IP + diesen Port.
     # Bewusst NICHT 80/8080 (Konflikt-Gefahr) - siehe INITIAL_DEPLOYMENT.md.
-    # ports:
-    #   - "8082:80"
+    ports:
+      - "8082:80"
 
   wehentimer-pocketbase:
     build:
@@ -25,18 +22,30 @@ services:
     restart: unless-stopped
     volumes:
       - pb_data:/pb/pb_data
-    networks:
-      - proxy
-    # Fallback ohne gemeinsames Docker-Netzwerk (siehe oben):
-    # ports:
-    #   - "8092:8090"
+    ports:
+      - "8092:8090"
 
-networks:
-  proxy:
-    external: true
-    # Name des Docker-Netzwerks, in dem auch der nginx Proxy Manager läuft
-    # (siehe INITIAL_DEPLOYMENT.md, Abschnitt "Docker-Netzwerk ermitteln").
-    name: ${PROXY_NETWORK_NAME}
+  wehentimer-dyndns:
+    # Haelt wehen/wehen-api bei familieaschenbrenner.de (netcup CloudDNS)
+    # aktuell, solange sich die oeffentliche IP des Anschlusses aendert -
+    # exakt derselbe Client wie bei otherApps dyndns-Service. Zugangsdaten
+    # kommen NUR aus der NAS-.env (siehe INITIAL_DEPLOYMENT.md), nie aus dem
+    # Repo.
+    image: stecklars/dynamic-dns-netcup-api:v7.0.0
+    container_name: wehentimer-dyndns
+    restart: unless-stopped
+    environment:
+      CUSTOMERNR: ${NETCUP_CUSTOMERNR}
+      CLOUDDNS_DYNDNS_APIKEY: ${NETCUP_CLOUDDNS_APIKEY}
+      # Syntax: "<domain>: <host>, <host>, ..." - siehe stecklars/dynamic-dns-netcup-api.
+      DOMAINLIST_CLOUDDNS_DYNDNS: "familieaschenbrenner.de: wehen, wehen-api"
+      CRON_SCHEDULE: "*/5 * * * *"
+      USE_IPV4: "true"
+      USE_IPV6: "false"
+      TZ: "Europe/Berlin"
+    volumes:
+      - dyndns-data:/app/data
 
 volumes:
   pb_data:
+  dyndns-data:

@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ReactElement } from 'react'
+import { useEffect, useState, type FocusEvent, type FormEvent, type ReactElement } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -19,8 +19,30 @@ function pad(n: number): string {
   return n.toString().padStart(2, '0')
 }
 
-function toDatetimeLocal(date: Date): string {
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+// Markiert den kompletten Feldinhalt beim Fokussieren, damit Tippen die
+// vorhandene "0" ersetzt statt "07" entstehen zu lassen.
+function selectAllOnFocus(e: FocusEvent<HTMLInputElement>) {
+  e.target.select()
+}
+
+// Getrennte Date-/Time-Inputs statt eines kombinierten datetime-local-Felds:
+// Handys zeigen dafür ihre nativen (schnelleren) Kalender-/Uhr-Räder statt
+// eines oft klobigen kombinierten Pickers.
+function toDateValue(date: Date): string {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
+function toTimeValue(date: Date): string {
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+function parseDateAndTime(dateStr: string, timeStr: string): Date | null {
+  if (!dateStr || !timeStr) return null
+  const [year, month, day] = dateStr.split('-').map(Number)
+  const [hours, minutes] = timeStr.split(':').map(Number)
+  if ([year, month, day, hours, minutes].some((n) => Number.isNaN(n))) return null
+  const date = new Date(year, month - 1, day, hours, minutes, 0)
+  return Number.isNaN(date.getTime()) ? null : date
 }
 
 interface ContractionFormProps {
@@ -44,7 +66,8 @@ export function ContractionForm({
   const open = openProp ?? internalOpen
   const setOpen = onOpenChange ?? setInternalOpen
 
-  const [startValue, setStartValue] = useState('')
+  const [startDateStr, setStartDateStr] = useState('')
+  const [startTimeStr, setStartTimeStr] = useState('')
   const [minutes, setMinutes] = useState(1)
   const [seconds, setSeconds] = useState(0)
   const [intensity, setIntensity] = useState<number | undefined>(undefined)
@@ -55,13 +78,17 @@ export function ContractionForm({
   useEffect(() => {
     if (!open) return
     if (contraction) {
-      setStartValue(toDatetimeLocal(new Date(contraction.start)))
+      const start = new Date(contraction.start)
+      setStartDateStr(toDateValue(start))
+      setStartTimeStr(toTimeValue(start))
       setMinutes(Math.floor(contraction.duration_sec / 60))
       setSeconds(contraction.duration_sec % 60)
       setIntensity(contraction.intensity)
       setNote(contraction.note ?? '')
     } else {
-      setStartValue(toDatetimeLocal(new Date()))
+      const now = new Date()
+      setStartDateStr(toDateValue(now))
+      setStartTimeStr(toTimeValue(now))
       setMinutes(1)
       setSeconds(0)
       setIntensity(undefined)
@@ -71,13 +98,13 @@ export function ContractionForm({
   }, [open, contraction])
 
   const durationSec = minutes * 60 + seconds
-  const start = startValue ? new Date(startValue) : null
+  const start = parseDateAndTime(startDateStr, startTimeStr)
   const end = start ? new Date(start.getTime() + durationSec * 1000) : null
-  const endValue = end ? toDatetimeLocal(end) : ''
+  const endDateStr = end ? toDateValue(end) : ''
+  const endTimeStr = end ? toTimeValue(end) : ''
 
-  function handleEndChange(value: string) {
-    if (!start || !value) return
-    const newEnd = new Date(value)
+  function applyEnd(newEnd: Date | null) {
+    if (!start || !newEnd) return
     const diffSec = Math.round((newEnd.getTime() - start.getTime()) / 1000)
     if (diffSec <= 0) {
       setError('Ende muss nach dem Start liegen.')
@@ -125,52 +152,72 @@ export function ContractionForm({
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="grid gap-2">
-            <Label htmlFor="contraction-start">Startzeitpunkt</Label>
-            <Input
-              id="contraction-start"
-              type="datetime-local"
-              step={1}
-              value={startValue}
-              onChange={(e) => setStartValue(e.target.value)}
-              required
-            />
+            <Label htmlFor="contraction-start-date">Startzeitpunkt</Label>
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                id="contraction-start-date"
+                type="date"
+                aria-label="Startdatum"
+                value={startDateStr}
+                onChange={(e) => setStartDateStr(e.target.value)}
+                required
+              />
+              <Input
+                type="time"
+                lang="en"
+                aria-label="Startuhrzeit"
+                value={startTimeStr}
+                onChange={(e) => setStartTimeStr(e.target.value)}
+                required
+              />
+            </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="grid gap-2">
-              <Label>Dauer</Label>
-              <div className="flex items-center gap-1.5">
-                <Input
-                  type="number"
-                  min={0}
-                  inputMode="numeric"
-                  aria-label="Minuten"
-                  value={minutes}
-                  onChange={(e) => setMinutes(Math.max(0, Number(e.target.value)))}
-                  className="w-16"
-                />
-                <span className="text-sm text-muted-foreground">Min</span>
-                <Input
-                  type="number"
-                  min={0}
-                  max={59}
-                  inputMode="numeric"
-                  aria-label="Sekunden"
-                  value={seconds}
-                  onChange={(e) => setSeconds(Math.min(59, Math.max(0, Number(e.target.value))))}
-                  className="w-16"
-                />
-                <span className="text-sm text-muted-foreground">Sek</span>
-              </div>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="contraction-end">Endzeitpunkt</Label>
+          <div className="grid gap-2">
+            <Label>Dauer</Label>
+            <div className="flex items-center gap-1.5">
               <Input
-                id="contraction-end"
-                type="datetime-local"
-                step={1}
-                value={endValue}
-                onChange={(e) => handleEndChange(e.target.value)}
+                type="number"
+                min={0}
+                inputMode="numeric"
+                aria-label="Minuten"
+                value={minutes}
+                onChange={(e) => setMinutes(Math.max(0, Number(e.target.value)))}
+                onFocus={selectAllOnFocus}
+                className="w-20"
+              />
+              <span className="text-sm text-muted-foreground">Min</span>
+              <Input
+                type="number"
+                min={0}
+                max={59}
+                inputMode="numeric"
+                aria-label="Sekunden"
+                value={seconds}
+                onChange={(e) => setSeconds(Math.min(59, Math.max(0, Number(e.target.value))))}
+                onFocus={selectAllOnFocus}
+                className="w-20"
+              />
+              <span className="text-sm text-muted-foreground">Sek</span>
+            </div>
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="contraction-end-date">Endzeitpunkt</Label>
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                id="contraction-end-date"
+                type="date"
+                aria-label="Enddatum"
+                value={endDateStr}
+                onChange={(e) => applyEnd(parseDateAndTime(e.target.value, endTimeStr))}
+              />
+              <Input
+                type="time"
+                lang="en"
+                aria-label="Enduhrzeit"
+                value={endTimeStr}
+                onChange={(e) => applyEnd(parseDateAndTime(endDateStr, e.target.value))}
               />
             </div>
           </div>

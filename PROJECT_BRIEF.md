@@ -60,8 +60,10 @@ Projektstruktur (Repo-Root = Vite-App-Root, analog `otherApp`):
   pocketbase/
     pb_migrations/      Schema-as-Code (contractions, settings Collections)
     Dockerfile          Baut ein Image mit gepinnter PocketBase-Version
-  docker-compose.yml    Services: frontend, pocketbase
-  Dockerfile            Frontend Multi-Stage-Build (Vite build -> nginx)
+  docker-compose.yml    Services: frontend, pocketbase, dyndns
+  Dockerfile            Frontend-Image (kopiert lokal vorgebautes dist/)
+  prepare-deploy.ps1    Baut die App lokal, erzeugt deploy/-Ordner fürs NAS
+  .env.production        VITE_POCKETBASE_URL für den Produktions-Build
   nginx.conf            Container-interne nginx-Konfiguration (SPA + Header)
   PROJECT_BRIEF.md       Diese Datei
   PROJECT_STATUS.md      Umsetzungsstand & Übergabe (nach Fertigstellung)
@@ -185,21 +187,31 @@ weiter).
 
 ## 7. Deployment-Überblick
 
-Docker-Compose-Stack mit zwei Services (`wehentimer-frontend`,
-`wehentimer-pocketbase` — bewusst eindeutig benannt, um auf demselben NAS
-nicht mit `otherApp`-Containern zu kollidieren) auf einem ugreen-NAS,
-dahinter ein bereits laufender **nginx Proxy Manager**, der SSL terminiert
-und zwei Hostnamen auf die Container verteilt (über ein gemeinsames
-Docker-Netzwerk, ohne Host-Ports zu publizieren):
+Docker-Compose-Stack mit drei Services (`wehentimer-frontend`,
+`wehentimer-pocketbase`, `wehentimer-dyndns` — bewusst eindeutig benannt, um
+auf demselben NAS nicht mit `otherApp`-Containern zu kollidieren) auf einem
+ugreen-NAS, dahinter ein bereits laufender **nginx Proxy Manager**, der SSL
+terminiert und zwei Hostnamen auf die Container verteilt. Der NPM-Container
+wird dabei bewusst nicht angefasst — Frontend und PocketBase veröffentlichen
+stattdessen feste Host-Ports (`8082`/`8092`), NPM zeigt per "Forward
+Hostname/IP" auf die NAS-LAN-IP:
 
-- `wehen.familieaschenbrenner.de` → `wehentimer-frontend`-Container (Port 80,
-  statisches Vite-Build via nginx ausgeliefert)
+- `wehen.familieaschenbrenner.de` → `wehentimer-frontend`-Container (Port
+  8082, statisches Vite-Build via nginx ausgeliefert, **lokal vorgebaut** via
+  `prepare-deploy.ps1` — analog zu `otherApp`, vermeidet Datei-Rechte-Probleme
+  beim In-Docker-Build auf dem NAS)
 - `wehen-api.familieaschenbrenner.de` → `wehentimer-pocketbase`-Container
-  (Port 8090)
+  (Port 8092)
+- `wehentimer-dyndns` (kein Port, kein Proxy Host) hält `wehen`/`wehen-api`
+  bei Netcup CloudDNS aktuell, weil `familieaschenbrenner.de` an einem
+  Anschluss mit wechselnder IP hängt — exakt derselbe Client
+  (`stecklars/dynamic-dns-netcup-api`) wie bei `otherApp`s `dyndns`-Service.
 
-Die vollständige, ausführliche Schritt-für-Schritt-Anleitung (DNS, NAS,
-Docker-Compose hochladen, nginx Proxy Manager Hosts anlegen, SSL, Test) steht
-in **[INITIAL_DEPLOYMENT.md](INITIAL_DEPLOYMENT.md)**.
+Die vollständige, ausführliche Schritt-für-Schritt-Anleitung (Netcup-API,
+DNS, NAS, lokal bauen, Docker-Compose hochladen, nginx Proxy Manager Hosts
+anlegen, SSL, Test) steht in
+**[INITIAL_DEPLOYMENT.md](INITIAL_DEPLOYMENT.md)**.
+
 
 ## 8. Übernommene Best-Practices aus `otherApp`
 

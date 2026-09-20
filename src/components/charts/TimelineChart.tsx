@@ -8,6 +8,29 @@ interface TimelineChartProps {
   streakIds?: Set<string>
 }
 
+const HOUR_MS = 3_600_000
+
+/** Rasterabstand in Stunden, abhängig von der Zeitspanne (sonst zu viele/zu wenige Linien). */
+function pickHourStep(spanMs: number): number {
+  const spanHours = spanMs / HOUR_MS
+  if (spanHours <= 6) return 1
+  if (spanHours <= 12) return 2
+  if (spanHours <= 24) return 3
+  if (spanHours <= 72) return 6
+  return 12
+}
+
+/** Volle-Stunden-Ticks innerhalb [domainStart, domainEnd], z.B. jeweils zur vollen Stunde. */
+function buildHourTicks(domainStart: number, domainEnd: number): number[] {
+  const stepMs = pickHourStep(domainEnd - domainStart) * HOUR_MS
+  const first = Math.ceil(domainStart / stepMs) * stepMs
+  const ticks: number[] = []
+  for (let t = first; t <= domainEnd; t += stepMs) {
+    ticks.push(t)
+  }
+  return ticks
+}
+
 /**
  * Leichtgewichtige Zeitleiste (kein Recharts nötig): Wehen überlappen sich
  * nie, deshalb reicht eine einzelne Spur mit prozentual positionierten
@@ -27,11 +50,22 @@ export function TimelineChart({ contractions, now, streakIds }: TimelineChartPro
   const nowMs = now.getTime()
   const domainEnd = Math.max(nowMs, new Date(sorted[sorted.length - 1].end).getTime())
   const span = Math.max(domainEnd - domainStart, 60_000)
-  const ticks = Array.from({ length: 5 }, (_, i) => domainStart + (span * i) / 4)
+  // Fällt keine volle Stunde in den Zeitraum (z.B. sehr kurze Zeitspanne),
+  // trotzdem eine Mindest-Legende mit Anfang/Mitte/Ende anzeigen.
+  const hourTicks = buildHourTicks(domainStart, domainEnd)
+  const ticks =
+    hourTicks.length > 0 ? hourTicks : [domainStart, domainStart + span / 2, domainEnd]
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-3">
       <div className="relative h-16 w-full overflow-hidden rounded-md bg-muted">
+        {ticks.map((t) => (
+          <div
+            key={t}
+            className="absolute top-0 h-full w-px bg-foreground/10"
+            style={{ left: `${((t - domainStart) / span) * 100}%` }}
+          />
+        ))}
         {sorted.map((c) => {
           const start = new Date(c.start).getTime()
           const durationMs = c.duration_sec * 1000
@@ -54,11 +88,22 @@ export function TimelineChart({ contractions, now, streakIds }: TimelineChartPro
           style={{ left: `${((nowMs - domainStart) / span) * 100}%` }}
         />
       </div>
-      <div className="flex justify-between text-xs text-muted-foreground">
-        {ticks.map((t) => (
-          <span key={t}>{formatTime(new Date(t))}</span>
-        ))}
+      <div className="relative h-4 text-xs text-muted-foreground">
+        {ticks.map((t) => {
+          const pct = ((t - domainStart) / span) * 100
+          const edge = pct <= 2 ? 'left-0' : pct >= 98 ? 'right-0' : '-translate-x-1/2'
+          return (
+            <span
+              key={t}
+              className={`absolute ${edge}`}
+              style={edge === '-translate-x-1/2' ? { left: `${pct}%` } : undefined}
+            >
+              {formatTime(new Date(t))}
+            </span>
+          )
+        })}
       </div>
     </div>
   )
 }
+

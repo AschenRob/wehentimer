@@ -63,14 +63,16 @@ export function ContractionListItem({
             {contraction.is_manual ? <Pencil className="size-3" /> : <Clock className="size-3" />}
             {contraction.is_manual ? 'manuell' : 'Timer'}
           </Badge>
-          {contraction.intensity && <Badge variant="outline">Stärke {contraction.intensity}/5</Badge>}
+          {contraction.intensity != null && contraction.intensity > 0 && (
+            <Badge variant="outline">Stärke {contraction.intensity}/5</Badge>
+          )}
         </div>
         {contraction.note && (
           <p className="truncate text-sm text-muted-foreground">{contraction.note}</p>
         )}
       </div>
 
-      <div className="flex shrink-0 items-center gap-1">
+      <div className="flex shrink-0 items-center gap-2">
         <ContractionForm
           mode="edit"
           contraction={contraction}
@@ -78,7 +80,7 @@ export function ContractionListItem({
           onOpenChange={setIsEditOpen}
           onSubmit={(draft) => onUpdate(contraction.id, draft)}
           trigger={
-            <Button variant="ghost" size="icon-sm" aria-label="Wehe bearbeiten">
+            <Button variant="ghost" size="icon" aria-label="Wehe bearbeiten">
               <Pencil className="size-4" />
             </Button>
           }
@@ -87,7 +89,7 @@ export function ContractionListItem({
         <AlertDialog>
           <AlertDialogTrigger
             render={
-              <Button variant="ghost" size="icon-sm" aria-label="Wehe löschen">
+              <Button variant="ghost" size="icon" aria-label="Wehe löschen">
                 <Trash2 className="size-4" />
               </Button>
             }

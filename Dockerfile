@@ -1,21 +1,10 @@
-# Frontend-Image: baut die Vite-App und liefert das Ergebnis über nginx aus.
-# Node-Version gepinnt (kein :latest, siehe PROJECT_BRIEF.md Abschnitt 6).
-FROM node:22-alpine AS build
-WORKDIR /app
-
-COPY package.json package-lock.json ./
-RUN npm ci
-
-COPY . .
-
-# Wird zur Build-Zeit fest in das JS-Bundle einkompiliert (Vite/statische SPA).
-ARG VITE_POCKETBASE_URL
-ENV VITE_POCKETBASE_URL=${VITE_POCKETBASE_URL}
-
-RUN npm run build
-
+# Frontend-Image: liefert das lokal vorgebaute dist/ (per prepare-deploy.ps1,
+# siehe INITIAL_DEPLOYMENT.md) über nginx aus. Kein npm-Build im Container -
+# vermeidet Datei-Rechte-Probleme beim Kopieren von NAS-hochgeladenen
+# dist/-Dateien (siehe otherApp-Lessons-Learned, 403 Forbidden).
 FROM nginx:1.27-alpine
-COPY --from=build /app/dist /usr/share/nginx/html
+COPY dist/ /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+RUN chmod -R a+rX /usr/share/nginx/html
 
 EXPOSE 80

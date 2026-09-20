@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FocusEvent, type FormEvent } from 'react'
 import { RotateCcw, Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -14,6 +14,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { DEFAULT_THRESHOLDS, type WehenSettings } from '@/types/settings'
 
+// Markiert den kompletten Feldinhalt beim Fokussieren, damit Tippen die
+// vorhandene "0" ersetzt statt "07" entstehen zu lassen.
+function selectAllOnFocus(e: FocusEvent<HTMLInputElement>) {
+  e.target.select()
+}
+
 interface SettingsDialogProps {
   settings: WehenSettings
   onSave: (
@@ -24,14 +30,17 @@ interface SettingsDialogProps {
 export function SettingsDialog({ settings, onSave }: SettingsDialogProps) {
   const [open, setOpen] = useState(false)
   const [intervalMinutes, setIntervalMinutes] = useState(settings.interval_minutes)
-  const [durationMinutes, setDurationMinutes] = useState(settings.duration_minutes)
+  // Mindestdauer wird dem Menschen in Sekunden angezeigt/eingegeben, aber wie
+  // gehabt als Minuten in der `settings`-Collection gespeichert (kein
+  // Migrations-/Schema-Wechsel nötig).
+  const [durationSeconds, setDurationSeconds] = useState(Math.round(settings.duration_minutes * 60))
   const [sustainedMinutes, setSustainedMinutes] = useState(settings.sustained_minutes)
   const [isSaving, setIsSaving] = useState(false)
 
   useEffect(() => {
     if (!open) return
     setIntervalMinutes(settings.interval_minutes)
-    setDurationMinutes(settings.duration_minutes)
+    setDurationSeconds(Math.round(settings.duration_minutes * 60))
     setSustainedMinutes(settings.sustained_minutes)
   }, [open, settings])
 
@@ -41,7 +50,7 @@ export function SettingsDialog({ settings, onSave }: SettingsDialogProps) {
     try {
       await onSave({
         interval_minutes: intervalMinutes,
-        duration_minutes: durationMinutes,
+        duration_minutes: durationSeconds / 60,
         sustained_minutes: sustainedMinutes,
       })
       setOpen(false)
@@ -52,7 +61,7 @@ export function SettingsDialog({ settings, onSave }: SettingsDialogProps) {
 
   function resetToDefaults() {
     setIntervalMinutes(DEFAULT_THRESHOLDS.interval_minutes)
-    setDurationMinutes(DEFAULT_THRESHOLDS.duration_minutes)
+    setDurationSeconds(Math.round(DEFAULT_THRESHOLDS.duration_minutes * 60))
     setSustainedMinutes(DEFAULT_THRESHOLDS.sustained_minutes)
   }
 
@@ -82,18 +91,20 @@ export function SettingsDialog({ settings, onSave }: SettingsDialogProps) {
               step={0.5}
               value={intervalMinutes}
               onChange={(e) => setIntervalMinutes(Number(e.target.value))}
+              onFocus={selectAllOnFocus}
               required
             />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="duration-minutes">Mindestdauer je Wehe (Minuten)</Label>
+            <Label htmlFor="duration-seconds">Mindestdauer je Wehe (Sekunden)</Label>
             <Input
-              id="duration-minutes"
+              id="duration-seconds"
               type="number"
-              min={0.1}
-              step={0.1}
-              value={durationMinutes}
-              onChange={(e) => setDurationMinutes(Number(e.target.value))}
+              min={1}
+              step={1}
+              value={durationSeconds}
+              onChange={(e) => setDurationSeconds(Number(e.target.value))}
+              onFocus={selectAllOnFocus}
               required
             />
           </div>
@@ -106,12 +117,13 @@ export function SettingsDialog({ settings, onSave }: SettingsDialogProps) {
               step={5}
               value={sustainedMinutes}
               onChange={(e) => setSustainedMinutes(Number(e.target.value))}
+              onFocus={selectAllOnFocus}
               required
             />
           </div>
 
           <Button type="button" variant="outline" size="sm" onClick={resetToDefaults} className="gap-1.5">
-            <RotateCcw className="size-3.5" /> Standard (5 / 1 / 60)
+            <RotateCcw className="size-3.5" /> Standard (5 Min / 60 Sek / 60 Min)
           </Button>
 
           <DialogFooter>

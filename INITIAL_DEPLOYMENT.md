@@ -1,120 +1,144 @@
 # INITIAL_DEPLOYMENT.md — Erst-Deployment auf dem ugreen-NAS
 
 > Diese Anleitung ist für die **einmalige Ersteinrichtung**. Sie setzt voraus,
-> dass auf dem ugreen-NAS bereits **Docker** (Container Manager/Container
-> Station o. ä.) und ein laufender **nginx Proxy Manager** (NPM) vorhanden
-> sind, und dass du Zugriff auf die DNS-Verwaltung der Domain
-> `familieaschenbrenner.de` hast. Für spätere Updates reicht danach ein
-> einfacheres Vorgehen (siehe Abschnitt 8).
+> dass auf dem ugreen-NAS bereits **Docker** (Container Manager) und ein
+> laufender **nginx Proxy Manager** (NPM) vorhanden sind, und dass du Zugriff
+> auf die Netcup CCP (Customer Control Panel) von `familieaschenbrenner.de`
+> hast. Zugriff ausschließlich per SFTP/File-Manager (kein SSH), NPM-Container
+> wird bewusst nie angefasst. Für spätere Updates reicht danach ein
+> einfacheres Vorgehen (siehe Abschnitt 11).
 
 ## 0. Kurzüberblick
 
 ```mermaid
 flowchart LR
     Handy["Handy / Browser"] -->|HTTPS| NPM["nginx Proxy Manager"]
-    NPM -->|wehen.familieaschenbrenner.de| FE["Container\nwehentimer-frontend\n(nginx, Port 80)"]
-    NPM -->|wehen-api.familieaschenbrenner.de| BE["Container\nwehentimer-pocketbase\n(Port 8090)"]
+    NPM -->|wehen.familieaschenbrenner.de| FE["Container\nwehentimer-frontend\n(nginx, Port 8082)"]
+    NPM -->|wehen-api.familieaschenbrenner.de| BE["Container\nwehentimer-pocketbase\n(Port 8092)"]
+    DDNS["Container\nwehentimer-dyndns"] -->|haelt A-Records aktuell| Netcup["Netcup DNS"]
     FE -.statisches Build.-> Handy
     FE -->|API + Realtime/SSE| BE
 ```
 
-Zwei Container, zwei Subdomains, kein Login. Beide Container hängen im
-selben Docker-Netzwerk wie der nginx Proxy Manager — dadurch müssen **keine
-Ports auf dem NAS-Host veröffentlicht werden** und es kann zu keinem
-Portkonflikt mit anderen Projekten (z. B. `otherApp`) kommen.
+Drei Container, zwei Subdomains, kein Login. `familieaschenbrenner.de` zeigt
+bisher noch gar nicht auf dieses NAS — die dynamische öffentliche IP wird
+über einen dritten Container (`wehentimer-dyndns`, exakt derselbe Client wie
+bei `otherApp`s `dyndns`-Service) automatisch bei Netcup (CloudDNS) aktuell
+gehalten. Der NPM-Container wird bewusst **nicht angefasst** (kein
+gemeinsames Docker-Netzwerk, kein Recreate) — stattdessen veröffentlichen
+Frontend und PocketBase feste, unübliche Host-Ports (`8082`/`8092`), und NPM
+zeigt per "Forward Hostname/IP" auf die **NAS-LAN-IP** + die jeweiligen
+Ports. `wehentimer-dyndns` braucht keinen Port (kein Web-UI, reiner
+Cron-Client).
 
-## 1. DNS einrichten
+Das **Frontend wird lokal gebaut** (`prepare-deploy.ps1`, wie bei `otherApp`)
+und nur der fertige `dist/`-Ordner aufs NAS hochgeladen — kein npm-Build mehr
+im Docker-Build auf dem NAS (vermeidet Datei-Rechte-Probleme, siehe
+`otherApp`s Lessons Learned zu "403 Forbidden").
 
-Zwei Subdomains unter `familieaschenbrenner.de` anlegen und auf die
-öffentliche IP/DynDNS-Adresse des NAS zeigen lassen (A-Record oder, falls die
-Domain bereits einen DynDNS-Mechanismus für andere Subdomains nutzt, dort
-ergänzen):
+## 1. Netcup: API-Zugangsdaten besorgen
 
-- `wehen.familieaschenbrenner.de`
-- `wehen-api.familieaschenbrenner.de`
+Falls beim `otherApp`-Projekt (`proviantplaner.de`) schon ein DynDNS-Container
+eingerichtet wurde: die dortige Kundennummer ist account-weit gleich, ein
+neuer CloudDNS-API-Key lässt sich trotzdem gut je Projekt trennen. Falls noch
+nichts existiert:
 
-Prüfen, ob die DNS-Verwaltung dieser Domain CNAMEs auf eine bestehende
-DynDNS-Adresse erlaubt (einfacher) oder ob feste A-Records nötig sind. Nach
-dem Anlegen mit `nslookup wehen.familieaschenbrenner.de 8.8.8.8` prüfen, ob
-die Auflösung bereits nach außen funktioniert (kann etwas dauern, siehe TTL).
+1. In der [Netcup CCP](https://www.customercontrolpanel.de/) einloggen.
+2. Menü **"Meine Daten"** (oder "Stammdaten") → Tab **"API"**.
+3. Im Bereich **"API-Keys"** (oben, **nicht** "Legacy-API-Keys") einen Key
+   generieren — das ist der reguläre CloudDNS-API-Key, den
+   `wehentimer-dyndns` (`stecklars/dynamic-dns-netcup-api`) für
+   CloudDNS-verwaltete Domains braucht. Kein separates API-Passwort nötig.
+4. Die **Kundennummer** steht oben auf jeder CCP-Seite neben deinem Namen.
+5. Zur Kontrolle: In der CCP unter Domains bei `familieaschenbrenner.de` auf
+   die Lupe klicken — ein Tab **"CloudDNS"** (statt "DNS") bestätigt, dass
+   dieser Weg (und nicht die Legacy-API) der richtige ist.
 
-## 2. Projektdateien auf das NAS bringen
+Notiere dir Customer-Nummer und CloudDNS-API-Key — sie werden gleich in eine
+`.env` **nur auf dem NAS** eingetragen, niemals ins Repo oder in einen Chat.
 
-Den Projektordner (ohne `node_modules/`, `dist/`) auf das NAS kopieren, z. B.
-per SFTP/File-Manager der NAS-Oberfläche oder — falls das Projekt in einem
-Git-Repository liegt — per `git clone` direkt auf dem NAS. Zielort z. B.:
+## 2. Netcup: DNS-Einträge anlegen
+
+`stecklars/dynamic-dns-netcup-api` legt fehlende A-Records automatisch an,
+sobald der Container das erste Mal läuft (Schritt 5/6) — in der CCP muss
+vorher **nichts** manuell angelegt werden, und die TTL wird von der
+CloudDNS-DynDNS-API automatisch auf 300s gesetzt. Optional lässt sich vorab
+zur Kontrolle prüfen, dass unter Domains → `familieaschenbrenner.de` →
+CloudDNS noch keine `wehen`/`wehen-api`-Records existieren.
+
+## 3. Lokal bauen
+
+Im Projektordner in PowerShell:
+
+```powershell
+.\prepare-deploy.ps1
+```
+
+Das Skript baut die App (`npm run build`, liest dabei automatisch
+`.env.production` mit `VITE_POCKETBASE_URL=https://wehen-api.familieaschenbrenner.de`)
+und legt einen `deploy/`-Ordner an:
+
+```
+deploy/
+├── dist/
+├── Dockerfile
+├── docker-compose.yml
+├── nginx.conf
+└── pocketbase/
+    ├── Dockerfile
+    └── pb_migrations/
+```
+
+## 4. Deploy-Ordner + `.env` aufs NAS bringen
+
+Inhalt von `deploy/` per SFTP/File-Manager auf das NAS kopieren, z. B. nach:
 
 ```
 /volume1/docker/wehentimer/   (Pfad je nach ugreen-NAS-Oberfläche anpassen)
 ```
 
-Wichtig sind mindestens: `Dockerfile`, `nginx.conf`, `docker-compose.yml`,
-`package.json` + `package-lock.json`, `src/`, `public/`, `index.html`,
-`vite.config.ts`, alle `tsconfig*.json`, `pwa-assets.config.ts`,
-`components.json`, `pocketbase/` (inkl. `pb_migrations/`).
-
-## 3. `.env` auf dem NAS anlegen
-
-Im Projektordner auf dem NAS eine **neue** Datei `.env` anlegen (diese Datei
-ist gitignored — nicht die lokale Entwickler-`.env` hierher kopieren, die
-enthält die lokale Dev-URL):
+Im selben Ordner auf dem NAS eine **neue** Datei `.env` anlegen (nur dort,
+nie ins Repo/`deploy/`-Ordner):
 
 ```dotenv
-VITE_POCKETBASE_URL=https://wehen-api.familieaschenbrenner.de
-PROXY_NETWORK_NAME=<siehe Schritt 4>
+NETCUP_CUSTOMERNR=<aus Schritt 1>
+NETCUP_CLOUDDNS_APIKEY=<aus Schritt 1>
 ```
 
-## 4. Docker-Netzwerk des nginx Proxy Managers ermitteln
+`VITE_POCKETBASE_URL` wird **nicht** mehr gebraucht — die URL steckt bereits
+fest im lokal gebauten `dist/`-Bundle (Schritt 3).
 
-Damit die neuen Container ohne Host-Ports vom NPM erreichbar sind, müssen sie
-im selben Docker-Netzwerk laufen wie der NPM-Container. Netzwerk ermitteln
-(per SSH auf dem NAS oder über die Docker-Oberfläche):
+## 5. Container Manager: Compose-Projekt anlegen und starten
 
-```bash
-docker network ls
-docker inspect <name-des-npm-containers> --format '{{json .NetworkSettings.Networks}}'
-```
+Im Container Manager ein neues Projekt aus dem hochgeladenen Ordner erstellen
+(Projekt → Erstellen → Ordner `/volume1/docker/wehentimer/` auswählen,
+`docker-compose.yml` wird erkannt) und bauen/starten (Build + Up).
 
-Den gefundenen Netzwerknamen (z. B. `nginx-proxy-manager_default` oder
-`npm_default`) in die `.env` als `PROXY_NETWORK_NAME` eintragen.
+Danach die Logs von `wehentimer-pocketbase` prüfen — die zwei Migrationen
+(`1790000000_create_contractions.js`, `1790000010_create_settings.js`)
+sollten beim ersten Start automatisch angewendet werden ("Applied ...").
 
-**Falls kein gemeinsames Netzwerk möglich ist** (z. B. weil die
-NAS-Oberfläche das nicht zulässt): In `docker-compose.yml` bei beiden
-Services den `networks:`-Block durch die auskommentierten `ports:`-Zeilen
-ersetzen (`8082:80` fürs Frontend, `8092:8090` für PocketBase — bewusst
-unübliche Ports, siehe PROJECT_BRIEF.md Abschnitt 6) und in den Proxy Hosts
-(Schritt 6) stattdessen die NAS-LAN-IP + diese Ports als "Forward
-Hostname/IP" eintragen.
+## 6. dyndns-Container prüfen
 
-## 5. Bauen und starten
+Logs von `wehentimer-dyndns` ansehen (`docker compose logs wehentimer-dyndns`)
+— dort sollte ein erfolgreicher Lauf für `familieaschenbrenner.de: wehen,
+wehen-api` stehen (Records werden beim ersten Lauf automatisch angelegt,
+falls sie noch nicht existieren). Mit
+`nslookup wehen.familieaschenbrenner.de 8.8.8.8` prüfen, ob die Auflösung
+bereits nach außen die richtige IP liefert (kann etwas dauern, TTL 300s).
 
-Im Projektordner auf dem NAS:
-
-```bash
-docker compose build
-docker compose up -d
-docker compose logs -f wehentimer-pocketbase   # Strg+C zum Beenden des Log-Streams
-```
-
-Im Log sollten die zwei Migrationen (`1790000000_create_contractions.js`,
-`1790000010_create_settings.js`) beim ersten Start automatisch angewendet
-werden ("Applied ...").
-
-## 6. nginx Proxy Manager: zwei Proxy Hosts anlegen
+## 7. nginx Proxy Manager: zwei Proxy Hosts anlegen
 
 **Host 1 — Frontend**
 - Domain Names: `wehen.familieaschenbrenner.de`
-- Scheme: `http`, Forward Hostname/Port: `wehentimer-frontend` / `80`
-  (Containername funktioniert nur, wenn Schritt 4 mit gemeinsamem Netzwerk
-  geklappt hat — sonst NAS-LAN-IP + `8082`)
+- Scheme: `http`, Forward Hostname/Port: **NAS-LAN-IP** / `8082`
 - SSL: Let's Encrypt-Zertifikat anfordern, **Force SSL** und **HTTP/2** an
 - HSTS: an, **`includeSubDomains` AUS lassen** (siehe Lessons Learned in
   PROJECT_BRIEF.md)
 
 **Host 2 — PocketBase-API**
 - Domain Names: `wehen-api.familieaschenbrenner.de`
-- Scheme: `http`, Forward Hostname/Port: `wehentimer-pocketbase` / `8090`
-  (bzw. NAS-LAN-IP + `8092` als Fallback)
+- Scheme: `http`, Forward Hostname/Port: **NAS-LAN-IP** / `8092`
 - SSL: ebenso Let's Encrypt + Force SSL
 - **Advanced-Tab: `/_/` (Adminpanel) auf das Heimnetz beschränken**, damit es
   nicht offen im Internet steht, z. B.:
@@ -122,7 +146,11 @@ werden ("Applied ...").
   location /_/ {
       allow 192.168.0.0/16;   # eigenes LAN anpassen
       deny all;
-      proxy_pass http://wehentimer-pocketbase:8090;
+      proxy_pass http://<NAS-LAN-IP>:8092;
+      proxy_set_header Host $host;
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto $scheme;
   }
   ```
 
@@ -135,7 +163,7 @@ curl -s -o /dev/null -w "%{http_code} %{redirect_url}\n" http://wehen-api.famili
 
 Erwartet wird jeweils `301` auf `https://…`.
 
-## 7. Erststart-Absicherung im PocketBase-Adminpanel
+## 8. Erststart-Absicherung im PocketBase-Adminpanel
 
 Über `https://wehen-api.familieaschenbrenner.de/_/` (nur aus dem Heimnetz
 erreichbar) einmalig:
@@ -148,7 +176,7 @@ erreichbar) einmalig:
    erwarteten Feldern angelegt wurden (Collections-Übersicht) und dass
    `settings` genau einen Datensatz mit den Werten `5 / 1 / 60` enthält.
 
-## 8. Funktionstest
+## 9. Funktionstest
 
 - `https://wehen.familieaschenbrenner.de` im Browser öffnen, Tab "Erfassung":
   Start/Stop-Timer einmal testen, danach über den Plus-Button einen Eintrag
@@ -160,21 +188,24 @@ erreichbar) einmalig:
   → "Zum Startbildschirm hinzufügen" (Android/Chrome) bzw. "Teilen → Zum
   Home-Bildschirm" (iOS/Safari). Icon sollte das Icon.png-Logo zeigen.
 - Bei Auffälligkeiten zuerst `docker compose logs wehentimer-pocketbase` bzw.
-  `wehentimer-frontend` prüfen.
+  `wehentimer-frontend`/`wehentimer-dyndns` prüfen.
 
-## 9. Updates nach der Ersteinrichtung
+## 10. Updates nach der Ersteinrichtung
 
-Für spätere Codeänderungen reicht auf dem NAS:
+Für spätere Codeänderungen reicht:
 
-```bash
-docker compose build
-docker compose up -d
+```powershell
+.\prepare-deploy.ps1
 ```
 
-Migrationen in `pocketbase/pb_migrations/` werden beim Neustart des
-PocketBase-Containers automatisch angewendet.
+Danach den Inhalt von `deploy/` wieder aufs NAS hochladen (überschreibt die
+gleichnamigen Dateien/Ordner — `.env` und `pb_data` auf dem NAS **nicht**
+anfassen) und im Container Manager das Projekt **neu bauen** (nicht nur neu
+starten, sonst gelangen die neuen `dist/`-Dateien nicht ins Frontend-Image)
+und alle drei Container neu starten. Migrationen in `pocketbase/pb_migrations/`
+werden dabei automatisch angewendet.
 
-## 10. Abschalten nach Ende des Nutzungszeitraums
+## 11. Abschalten nach Ende des Nutzungszeitraums
 
 Die App ist bewusst nur für wenige Tage gedacht. Zum vollständigen Abbau:
 
@@ -184,10 +215,12 @@ docker compose down -v   # -v löscht auch das PocketBase-Datenvolume (pb_data)!
 
 Danach zusätzlich:
 - Die beiden Proxy Hosts im nginx Proxy Manager löschen oder deaktivieren.
-- Die beiden DNS-Einträge (Schritt 1) entfernen, falls sie nicht anderweitig
-  gebraucht werden.
+- Die beiden DNS-Einträge (`wehen`, `wehen-api`) in der Netcup CCP entfernen,
+  falls sie nicht anderweitig gebraucht werden (der `dyndns`-Container ist
+  mit `down -v` ohnehin gestoppt und aktualisiert sie nicht mehr).
 - Optional den Projektordner vom NAS löschen.
 
 **Vor `down -v`** kurz überlegen, ob die erfassten Wehen-Daten noch gebraucht
 werden (z. B. als Rückblick) — notfalls vorher `pb_data` sichern
 (`docker cp wehentimer-pocketbase:/pb/pb_data ./backup-pb_data`).
+

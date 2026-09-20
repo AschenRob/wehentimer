@@ -41,10 +41,14 @@ export default defineConfig({
   },
   // Bewusst abweichend vom Standard-Port 5173: otherApp nutzt lokal 5173/8090,
   // damit läuft dieses Projekt parallel auf demselben Dev-Rechner ohne Konflikt.
+  // host: true bindet auf 0.0.0.0, damit der Dev-Server auch vom Smartphone im
+  // selben WLAN erreichbar ist (z.B. http://<LAN-IP>:5174) - siehe PROJECT_STATUS.md.
   server: {
     port: 5174,
+    host: true,
   },
   preview: {
     port: 5174,
+    host: true,
   },
 })

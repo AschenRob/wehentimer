@@ -3,8 +3,33 @@ import { toast } from 'sonner'
 import { CONTRACTIONS_COLLECTION, pb } from '@/lib/pocketbase'
 import type { Contraction, ContractionDraft } from '@/types/contraction'
 
-function sortByStartDesc(items: Contraction[]): Contraction[] {
-  return [...items].sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime())
+// Sortiert nach Startzeit absteigend UND entfernt dabei doppelte IDs (erstes
+// Vorkommen gewinnt) - reine Absicherung gegen ein einmalig beobachtetes
+// StrictMode-Timing (zwei kurzzeitig parallele Realtime-Subscriptions beim
+// Doppel-Mount), das denselben Datensatz zweimal in den State einfügen
+// konnte. Die Datenbank selbst hatte dabei nie doppelte Zeilen.
+function dedupeAndSort(items: Contraction[]): Contraction[] {
+  const seen = new Set<string>()
+  const unique: Contraction[] = []
+  for (const item of items) {
+    if (seen.has(item.id)) continue
+    seen.add(item.id)
+    unique.push(item)
+  }
+  return unique.sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime())
+}
+
+// `crypto.randomUUID()` gibt es nur in "secure contexts" (HTTPS oder
+// localhost). Im lokalen Netzwerk wird die App aber bewusst per einfachem
+// HTTP über die LAN-IP aufgerufen (Smartphone-Zugriff, siehe PROJECT_STATUS.md)
+// - dort würde `crypto.randomUUID` fehlen und synchron werfen, wodurch das
+// Anlegen einer Wehe komplett fehlschlägt, bevor überhaupt ein Request
+// rausgeht. Deshalb hier ein Fallback ohne Web-Crypto-Abhängigkeit.
+function randomId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
 }
 
 /** Lädt alle Wehen, hält sie per Realtime-Subscription geräteübergreifend synchron. */
@@ -42,10 +67,10 @@ export function useContractions() {
         setContractions((prev) => {
           if (e.action === 'create') {
             if (prev.some((c) => c.id === e.record.id)) return prev
-            return sortByStartDesc([e.record, ...prev])
+            return dedupeAndSort([e.record, ...prev])
           }
           if (e.action === 'update') {
-            return sortByStartDesc(prev.map((c) => (c.id === e.record.id ? e.record : c)))
+            return dedupeAndSort(prev.map((c) => (c.id === e.record.id ? e.record : c)))
           }
           if (e.action === 'delete') {
             return prev.filter((c) => c.id !== e.record.id)
@@ -65,15 +90,24 @@ export function useContractions() {
   }, [])
 
   const createContraction = useCallback(async (draft: ContractionDraft) => {
-    const optimisticId = `optimistic-${crypto.randomUUID()}`
+    const optimisticId = `optimistic-${randomId()}`
     const now = new Date().toISOString()
     const optimistic: Contraction = { id: optimisticId, created: now, updated: now, ...draft }
-    setContractions((prev) => sortByStartDesc([optimistic, ...prev]))
+    setContractions((prev) => dedupeAndSort([optimistic, ...prev]))
     try {
       const record = await pb
         .collection(CONTRACTIONS_COLLECTION)
         .create<Contraction>(draft, { requestKey: null })
-      setContractions((prev) => sortByStartDesc(prev.map((c) => (c.id === optimisticId ? record : c))))
+      setContractions((prev) => {
+        // Die Realtime-Subscription kann den neuen Datensatz per SSE schneller
+        // liefern als diese HTTP-Antwort zurückkommt. Ist das passiert, steht
+        // der echte Datensatz bereits in der Liste -> Platzhalter nur entfernen
+        // statt ihn zusätzlich durch den Datensatz zu ersetzen (sonst Duplikat).
+        if (prev.some((c) => c.id === record.id)) {
+          return dedupeAndSort(prev.filter((c) => c.id !== optimisticId))
+        }
+        return dedupeAndSort(prev.map((c) => (c.id === optimisticId ? record : c)))
+      })
       return record
     } catch (err) {
       setContractions((prev) => prev.filter((c) => c.id !== optimisticId))
@@ -86,13 +120,13 @@ export function useContractions() {
   const updateContraction = useCallback(async (id: string, draft: Partial<ContractionDraft>) => {
     const previous = contractionsRef.current
     setContractions((prev) =>
-      sortByStartDesc(prev.map((c) => (c.id === id ? { ...c, ...draft } : c))),
+      dedupeAndSort(prev.map((c) => (c.id === id ? { ...c, ...draft } : c))),
     )
     try {
       const record = await pb
         .collection(CONTRACTIONS_COLLECTION)
         .update<Contraction>(id, draft, { requestKey: null })
-      setContractions((prev) => sortByStartDesc(prev.map((c) => (c.id === id ? record : c))))
+      setContractions((prev) => dedupeAndSort(prev.map((c) => (c.id === id ? record : c))))
       return record
     } catch (err) {
       setContractions(previous)

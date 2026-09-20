@@ -21,7 +21,10 @@ interface IntervalDurationChartProps {
 export function IntervalDurationChart({ contractions, thresholds }: IntervalDurationChartProps) {
   const data = buildChartSeries(contractions).map((point) => ({
     ...point,
-    label: formatTime(point.start),
+    // Numerischer Timestamp statt Kategorie-Label -> die X-Achse kann die
+    // Punkte proportional zum tatsächlichen zeitlichen Abstand platzieren,
+    // statt sie gleichmäßig durchzunummerieren.
+    timestamp: new Date(point.start).getTime(),
   }))
 
   if (data.length < 2) {
@@ -37,11 +40,14 @@ export function IntervalDurationChart({ contractions, thresholds }: IntervalDura
       <LineChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 36 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
         <XAxis
-          dataKey="label"
+          dataKey="timestamp"
+          type="number"
+          scale="time"
+          domain={['dataMin', 'dataMax']}
+          tickFormatter={(value) => formatTime(new Date(value))}
           angle={-45}
           textAnchor="end"
           height={50}
-          interval="preserveStartEnd"
           tick={{ fontSize: 12 }}
         />
         <YAxis
@@ -50,7 +56,7 @@ export function IntervalDurationChart({ contractions, thresholds }: IntervalDura
         />
         <Tooltip
           formatter={(value, name) => [`${Number(value).toFixed(1)} Min`, name]}
-          labelFormatter={(label) => `Start: ${label}`}
+          labelFormatter={(label) => `Start: ${formatTime(new Date(label as number))}`}
         />
         <Legend wrapperStyle={{ fontSize: 12 }} />
         <ReferenceLine

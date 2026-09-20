@@ -6,9 +6,13 @@
 
 ## 1. Aktueller Stand
 
-Die App ist **vollständig implementiert und lokal gebaut/gelinted, aber noch
-nicht auf dem NAS deployt**. Nächster Schritt ist die Ersteinrichtung gemäß
-[INITIAL_DEPLOYMENT.md](INITIAL_DEPLOYMENT.md).
+Die App ist **vollständig implementiert und produktiv im Einsatz** unter
+`https://wehen.familieaschenbrenner.de` (API unter
+`https://wehen-api.familieaschenbrenner.de`). Ersteinrichtung (2026-09-20)
+abgeschlossen gemäß [INITIAL_DEPLOYMENT.md](INITIAL_DEPLOYMENT.md) — drei
+Container (`wehentimer-frontend`, `wehentimer-pocketbase`,
+`wehentimer-dyndns`) laufen auf dem ugreen-NAS, DNS/SSL/Rate-Limiting/
+Superuser sind eingerichtet.
 
 Umgesetzt:
 - Tab „Erfassung“: Start/Stop-Live-Timer (großer runder Button), manuelle
@@ -32,7 +36,7 @@ Zwei Terminals, **bewusst andere Ports als otherApp** (dort 5173/8090):
 
 ```powershell
 # Terminal 1: PocketBase (Binary separat herunterladen, siehe unten)
-.\pocketbase\pocketbase.exe serve --http=127.0.0.1:8091
+.\pocketbase\pocketbase.exe serve --http=0.0.0.0:8091
 
 # Terminal 2: Frontend
 npm run dev
@@ -46,7 +50,37 @@ Frontend: `http://localhost:5174`. PocketBase-Adminpanel: `http://127.0.0.1:8091
   https://github.com/pocketbase/pocketbase/releases, passend zum
   `pocketbase/Dockerfile`). Migrationen in `pocketbase/pb_migrations/` werden
   beim ersten Start automatisch angewendet.
-- `.env` (lokal, gitignored) zeigt bereits auf `http://127.0.0.1:8091`.
+- `.env` (lokal, gitignored) zeigt auf die LAN-IP des Dev-Rechners (siehe
+  unten), NICHT auf `127.0.0.1` — sonst kann das Smartphone PocketBase nicht
+  erreichen.
+
+### Vom Smartphone aus erreichbar machen
+
+Beide Dienste müssen auf allen Netzwerk-Interfaces lauschen, nicht nur auf
+`127.0.0.1`, UND das Frontend muss PocketBase über die LAN-IP statt
+`127.0.0.1` ansprechen:
+
+1. PocketBase mit `--http=0.0.0.0:8091` starten (s.o., nicht `127.0.0.1`).
+2. `vite.config.ts` setzt bereits `server.host = true` /
+   `preview.host = true` — Vite bindet damit ebenfalls auf `0.0.0.0` und
+   zeigt beim Start die LAN-URL an (`➜ Network: http://<LAN-IP>:5174/`).
+3. `.env` auf die LAN-IP des Dev-Rechners zeigen lassen, z.B.
+   `VITE_POCKETBASE_URL=http://192.168.178.20:8091` (IP per `ipconfig`/
+   `Get-NetIPAddress` ermitteln — ändert sich ggf. nach Router-Neustart/DHCP,
+   dann `.env` erneut anpassen und `npm run dev` neu starten).
+4. Auf dem Smartphone (im **selben WLAN**) die vom Vite-Terminal angezeigte
+   Network-URL öffnen, z.B. `http://192.168.178.20:5174`.
+5. Falls die Seite auf dem Handy nicht lädt: Windows-Firewall kann private
+   Netzwerk-Zugriffe auf `node.exe`/`pocketbase.exe` blockieren — beim
+   Verbindungsaufbau erscheint normalerweise ein Zulassen-Dialog; falls
+   nicht, manuell eine Eingehende Regel für die Ports 5174/8091 im privaten
+   Profil freigeben.
+
+**Wichtige Falle dabei (siehe Abschnitt 5):** `crypto.randomUUID()` ist nur
+in "secure contexts" (HTTPS oder `localhost`) verfügbar. Der Zugriff per
+LAN-IP über einfaches HTTP ist **kein** secure context — ohne den Fallback
+in `useContractions.ts` würde das Anlegen einer Wehe dort sofort mit einem
+unbehandelten Fehler fehlschlagen (bereits gefixt, s.u.).
 
 ## 3. Tech-Stack
 
@@ -77,6 +111,29 @@ Frontend: `http://localhost:5174`. PocketBase-Adminpanel: `http://127.0.0.1:8091
 
 ## 5. Lessons Learned
 
+- **KRITISCH (secure context / `crypto.randomUUID`):** `crypto.randomUUID()`
+  existiert nur in "secure contexts" (HTTPS oder `localhost`). Der für
+  Smartphone-Tests nötige Zugriff per LAN-IP über einfaches HTTP ist **kein**
+  secure context — `crypto.randomUUID` ist dort schlicht `undefined`. Da der
+  Aufruf in `useContractions.createContraction` (Erzeugung der optimistischen
+  Platzhalter-ID) VOR dem eigentlichen API-Request lag, ist die gesamte
+  Funktion dort synchron mit `TypeError: crypto.randomUUID is not a function`
+  gescheitert — **bevor überhaupt ein Request rausging**. Symptom: Start/Stop-
+  Button und der manuelle "+"-Dialog haben scheinbar gar nichts gemacht,
+  ohne sichtbare Fehlermeldung (kein Toast, da der Fehler nie ins catch lief).
+  Nur über die Browser-Konsole beim Testen per LAN-IP entdeckt — bei
+  `localhost` unauffällig, weil dort automatisch secure context gilt. Fix:
+  eigener `randomId()`-Fallback ohne Web-Crypto-Abhängigkeit.
+- **Race Condition (Realtime vs. optimistisches Update):** Die
+  Realtime-Subscription kann ein `create`-Event per SSE schneller liefern als
+  die HTTP-Antwort des eigenen `create()`-Aufrufs zurückkommt. Wurde das
+  nicht abgefangen, entstand ein Duplikat: der Platzhalter UND der per
+  Realtime bereits eingefügte echte Datensatz blieben beide in der Liste,
+  weil die Auflösung des `create()`-Aufrufs den Platzhalter blind durch den
+  Datensatz ersetzt hat statt zu prüfen, ob er schon vorhanden ist. Fix in
+  `useContractions.ts`: vor dem Ersetzen prüfen, ob die ID bereits in der
+  Liste steckt — falls ja, nur den Platzhalter entfernen statt zusätzlich zu
+  ersetzen.
 - **KRITISCH (PocketBase-Migrationen):** Neue Felder in
   `new Collection({fields: [...]})` müssen als **plain objects mit
   `type: "..."`-String** angegeben werden (`{name: "x", type: "number", ...}`),
@@ -98,11 +155,15 @@ Frontend: `http://localhost:5174`. PocketBase-Adminpanel: `http://127.0.0.1:8091
 
 ## 6. Offene Punkte
 
-- Erst-Deployment auf dem ugreen-NAS steht noch aus (siehe
-  [INITIAL_DEPLOYMENT.md](INITIAL_DEPLOYMENT.md)).
-- Rate-Limiting in PocketBase ist **nicht** per Migration gesetzt (bewusst,
-  um keine möglicherweise falsche Settings-API zu raten) — als manueller
-  Schritt in INITIAL_DEPLOYMENT.md Abschnitt 7 dokumentiert.
 - Kein automatisiertes Test-Setup (bewusst, kurzlebige Kleinst-App) — Kernlogik
   (`src/lib/rule511.ts`) ist aber als reine, leicht manuell nachvollziehbare
   Funktion gehalten.
+- **NAT-Hairpin-Falle beim `/_/`-Heimnetz-Schutz:** Ruft man die öffentliche
+  Domain von zuhause auf, sieht nginx als Client-IP die eigene (dynamische)
+  öffentliche IP statt der LAN-IP — die `allow`-Regel im NPM-Proxy-Host für
+  `wehen-api` muss diese IP zusätzlich enthalten und nach einem IP-Wechsel
+  ggf. manuell nachgezogen werden (per `nslookup` prüfen). Alternativ direkt
+  über `http://<NAS-LAN-IP>:8092/_/` erreichbar (umgeht NPM/Hairpin).
+- Für Updates nach der Ersteinrichtung: `prepare-deploy.ps1` ausführen,
+  `deploy/`-Inhalt aufs NAS hochladen (siehe INITIAL_DEPLOYMENT.md
+  Abschnitt 10).
