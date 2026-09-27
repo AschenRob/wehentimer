@@ -16,9 +16,11 @@ import type { Contraction } from '@/types/contraction'
 interface IntervalDurationChartProps {
   contractions: Contraction[]
   thresholds: Thresholds
+  /** Festes Maximum der Y-Achse in Minuten, `null` = automatisch. */
+  yMax: number | null
 }
 
-export function IntervalDurationChart({ contractions, thresholds }: IntervalDurationChartProps) {
+export function IntervalDurationChart({ contractions, thresholds, yMax }: IntervalDurationChartProps) {
   const data = buildChartSeries(contractions).map((point) => ({
     ...point,
     // Numerischer Timestamp statt Kategorie-Label -> die X-Achse kann die
@@ -52,6 +54,8 @@ export function IntervalDurationChart({ contractions, thresholds }: IntervalDura
         />
         <YAxis
           tick={{ fontSize: 12 }}
+          domain={yMax != null ? [0, yMax] : [0, 'auto']}
+          allowDataOverflow={yMax != null}
           label={{ value: 'Minuten', angle: -90, position: 'insideLeft', fontSize: 12 }}
         />
         <Tooltip

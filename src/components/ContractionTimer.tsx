@@ -1,7 +1,8 @@
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Play, Square } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useElapsedSeconds } from '@/hooks/useElapsedSeconds'
+import { isIsoStringOrNull, usePersistentState } from '@/hooks/usePersistentState'
 import { formatDurationClock } from '@/lib/format'
 import {
   Dialog,
@@ -21,7 +22,12 @@ interface ContractionTimerProps {
 }
 
 export function ContractionTimer({ onSave, onUpdateIntensity }: ContractionTimerProps) {
-  const [startedAt, setStartedAt] = useState<Date | null>(null)
+  const [startedAtIso, setStartedAtIso] = usePersistentState<string | null>(
+    'contractionTimerStart',
+    null,
+    isIsoStringOrNull,
+  )
+  const startedAt = useMemo(() => (startedAtIso ? new Date(startedAtIso) : null), [startedAtIso])
   const [isSaving, setIsSaving] = useState(false)
   const [intensityPromptFor, setIntensityPromptFor] = useState<Contraction | null>(null)
   const [intensityValue, setIntensityValue] = useState(3)
@@ -33,15 +39,15 @@ export function ContractionTimer({ onSave, onUpdateIntensity }: ContractionTimer
     // Schützt gegen doppelt ausgelöste Klicks/Taps im selben Tick (z.B. schnelles
     // Doppeltippen auf dem Handy), bevor React den "isSaving"-State nachzieht.
     if (isBusyRef.current) return
-    if (!isRunning) {
-      setStartedAt(new Date())
+    if (!startedAt) {
+      setStartedAtIso(new Date().toISOString())
       return
     }
     isBusyRef.current = true
     const start = startedAt
     const end = new Date()
     const durationSec = Math.max(1, Math.round((end.getTime() - start.getTime()) / 1000))
-    setStartedAt(null)
+    setStartedAtIso(null)
     setIsSaving(true)
     try {
       const record = await onSave({

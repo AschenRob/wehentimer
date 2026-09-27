@@ -11,3 +11,4 @@ pb.autoCancellation(false)
 
 export const CONTRACTIONS_COLLECTION = 'contractions'
 export const SETTINGS_COLLECTION = 'settings'
+export const FEEDINGS_COLLECTION = 'feedings'

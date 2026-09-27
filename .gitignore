@@ -11,6 +11,7 @@ node_modules
 dist
 dist-ssr
 deploy
+wehentimer-deploy.zip
 *.local
 
 # PocketBase (lokal als Binary, Daten nie versioniert)
@@ -18,6 +19,9 @@ pocketbase/pocketbase
 pocketbase/pocketbase.exe
 pocketbase/pb_data/
 pocketbase/pb_data_dev/
+
+# Lokale Sicherungen der Produktivdaten (personenbezogen, nie versionieren)
+backups/
 
 # Umgebungsvariablen
 .env

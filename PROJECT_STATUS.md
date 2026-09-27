@@ -1,8 +1,9 @@
 # Projektstatus & Übergabe für die nächste KI-Session
 
 > Lies dieses Dokument zuerst. Die vollständige fachliche/technische Spezifikation
-> steht in [PROJECT_BRIEF.md](PROJECT_BRIEF.md), die Deployment-Schritte in
-> [INITIAL_DEPLOYMENT.md](INITIAL_DEPLOYMENT.md).
+> steht in [PROJECT_BRIEF.md](PROJECT_BRIEF.md), die Ersteinrichtung in
+> [INITIAL_DEPLOYMENT.md](INITIAL_DEPLOYMENT.md), **Updates inkl. Backup in
+> [DEPLOYMENT.md](DEPLOYMENT.md)**.
 
 ## 1. Aktueller Stand
 
@@ -29,6 +30,35 @@ Umgesetzt:
 - PWA installierbar (Icons aus `Icon.png` generiert), Docker-Setup für
   Frontend + PocketBase mit eindeutigen Container-Namen/Ports (kein Konflikt
   mit `otherApp`).
+
+Erweiterung 2026-09-27 (noch nicht deployt):
+- **Toleranz** für die 5-1-1-Serie (`settings.tolerance_count`,
+  geräteübergreifend, Standard 1): bis zu X Ausreißer-Wehen (zu kurz ODER
+  Abstand zu groß, Lücke beliebig groß) zählen insgesamt pro Serie als
+  „innerhalb“; der X+1-te beendet die Serie. Eine Serie beginnt nie mit einem
+  Ausreißer. Migration `1790000020` setzt den bestehenden Datensatz auf 1.
+- Wehen-Auswertung: ein gemeinsamer Zeitraum für alle Charts, Y-Achsen-Max
+  (Auto/10/15/20/30/60 Min) im Verlaufsdiagramm, Zeitleisten-Balken nach Stärke
+  gefärbt (1 grün → 5 rot, ohne Stärke grau), laufendes Muster als blaue
+  Linie unter der Zeitleiste.
+- **Stilltracker** als zweite Ansicht (Umschalter im Einstellungsdialog):
+  Collection `feedings` (Migration `1790000030`), Start/Stop-Timer → nach Stop
+  Dialog mit Standardwerten (aufgewacht ja, Zufütterung als Dropdown
+  Muttermilch/Ersatzmilch + Menge 100 ml, gespeichert in
+  `supplement_mm_ml`/`supplement_em_ml`; Urin/Stuhl nein; Gewicht = letzter
+  Eintrag, beim allerersten 3.500 g); gespeichert wird erst beim Bestätigen, Verwerfen
+  nur nach Warnung. Liste mit Bearbeiten/Löschen, manuelles Nachtragen.
+  Auswertung: KPI-Karte (letzte 24 Std.), Tagesrhythmus (0–24 Uhr je Tag),
+  Pro Tag (Mahlzeiten/Angelegt/Zufütterung/Windeln/Aufwachen), Verlauf je
+  Mahlzeit, Nach Tageszeit, Gewichtsverlauf — jeweils mit Dropdowns, plus
+  gemeinsamer Zeitraum.
+- **Pro Gerät im localStorage** (`usePersistentState`, Präfix `wehentimer.`):
+  gewählte Ansicht, alle Chart-Zeiträume/-Dropdowns, laufender Wehen- und
+  Still-Timer sowie ein gestoppter, noch nicht gespeicherter Still-Eintrag —
+  überleben Neuladen/App-Schließen.
+- Code-Struktur: `App.tsx` = Kopf + Ansichtswahl, Inhalte in
+  `src/views/WehenView.tsx`/`StillView.tsx`; gemeinsamer Realtime-Hook
+  `useRealtimeCollection` (von `useContractions`/`useFeedings` genutzt).
 
 ## 2. Lokal starten
 
@@ -100,10 +130,11 @@ unbehandelten Fehler fehlschlagen (bereits gefixt, s.u.).
 
 ## 4. Bekannte, akzeptierte Lint-Warnungen
 
-`npm run lint` zeigt 6 Warnungen, keine Fehler:
+`npm run lint` zeigt 7 Warnungen, keine Fehler:
 - 3× `only-export-components` in generierten shadcn-Dateien (`ui/button.tsx`,
   `ui/badge.tsx`, `ui/tabs.tsx`) — nicht selbst geschrieben, ignorieren.
-- 3× `set-state-in-effect` in `ContractionForm.tsx`, `SettingsDialog.tsx` und
+- 4× `set-state-in-effect` in `ContractionForm.tsx`, `FeedingForm.tsx`,
+  `SettingsDialog.tsx` und
   `useElapsedSeconds.ts` — bewusstes "Formular beim Öffnen zurücksetzen"
   bzw. "Timer sekündlich ticken" Muster, kein Bug.
 
@@ -166,4 +197,5 @@ unbehandelten Fehler fehlschlagen (bereits gefixt, s.u.).
   über `http://<NAS-LAN-IP>:8092/_/` erreichbar (umgeht NPM/Hairpin).
 - Für Updates nach der Ersteinrichtung: `prepare-deploy.ps1` ausführen,
   `deploy/`-Inhalt aufs NAS hochladen (siehe INITIAL_DEPLOYMENT.md
-  Abschnitt 10).
+  Abschnitt 10). Die neuen Migrationen (`1790000020`, `1790000030`) laufen
+  beim Neustart des PocketBase-Containers automatisch.

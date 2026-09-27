@@ -19,6 +19,10 @@ Copy-Item (Join-Path $PSScriptRoot "dist") (Join-Path $deployDir "dist") -Recurs
 Copy-Item (Join-Path $PSScriptRoot "Dockerfile") $deployDir
 Copy-Item (Join-Path $PSScriptRoot "docker-compose.yml") $deployDir
 Copy-Item (Join-Path $PSScriptRoot "nginx.conf") $deployDir
-Copy-Item (Join-Path $PSScriptRoot "pocketbase") (Join-Path $deployDir "pocketbase") -Recurse
+# Nur was das PocketBase-Image braucht - NIE die lokale Dev-Datenbank (pb_data) oder pocketbase.exe.
+$pbDeployDir = Join-Path $deployDir "pocketbase"
+New-Item -ItemType Directory -Path $pbDeployDir | Out-Null
+Copy-Item (Join-Path $PSScriptRoot "pocketbase/Dockerfile") $pbDeployDir
+Copy-Item (Join-Path $PSScriptRoot "pocketbase/pb_migrations") (Join-Path $pbDeployDir "pb_migrations") -Recurse
 
 Write-Host "Fertig: '$deployDir' kann jetzt aufs NAS hochgeladen werden (Inhalt ueberschreiben, pb_data/.env NICHT anfassen)."

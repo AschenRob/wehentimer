@@ -74,7 +74,12 @@ export function Rule511Card({ result, sustainedMinutes, lastHourCount }: Rule511
         </div>
         <div>
           <dt className="text-xs opacity-70">Wehen im Muster</dt>
-          <dd>{result.streakCount}</dd>
+          <dd>
+            {result.streakCount}
+            {result.outlierCount > 0 && (
+              <span className="text-xs opacity-70"> (davon {result.outlierCount} toleriert)</span>
+            )}
+          </dd>
         </div>
         <div>
           <dt className="flex items-center gap-1 text-xs opacity-70">

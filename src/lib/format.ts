@@ -19,6 +19,49 @@ const decimalFormatter = new Intl.NumberFormat('de-DE', {
   maximumFractionDigits: 1,
 })
 
+const integerFormatter = new Intl.NumberFormat('de-DE', {
+  maximumFractionDigits: 0,
+})
+
+const dayFormatter = new Intl.DateTimeFormat('de-DE', {
+  weekday: 'short',
+  day: '2-digit',
+  month: '2-digit',
+})
+
+/** z.B. "Mo., 28.09." */
+export function formatDay(date: Date | string): string {
+  return dayFormatter.format(new Date(date))
+}
+
+const shortDateFormatter = new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit' })
+
+/** z.B. "28.09." */
+export function formatShortDate(date: Date | string): string {
+  return shortDateFormatter.format(new Date(date))
+}
+
+export function formatDecimal(value: number): string {
+  return decimalFormatter.format(value)
+}
+
+export function formatMl(ml: number): string {
+  return `${integerFormatter.format(ml)} ml`
+}
+
+export function formatGrams(grams: number): string {
+  return `${integerFormatter.format(grams)} g`
+}
+
+/** Minuten -> "45 Min" bzw. "2 Std 15 Min" (für Abstände zwischen Mahlzeiten). */
+export function formatHoursMinutes(totalMinutes: number): string {
+  const rounded = Math.max(0, Math.round(totalMinutes))
+  if (rounded < 60) return `${rounded} Min`
+  const hours = Math.floor(rounded / 60)
+  const minutes = rounded % 60
+  return minutes > 0 ? `${hours} Std ${minutes} Min` : `${hours} Std`
+}
+
 export function formatTime(date: Date | string): string {
   return timeFormatter.format(new Date(date))
 }

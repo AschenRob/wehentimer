@@ -192,6 +192,9 @@ erreichbar) einmalig:
 
 ## 10. Updates nach der Ersteinrichtung
 
+> Ausführlicher Ablauf inkl. Backup und Datensicherheit:
+> **[DEPLOYMENT.md](DEPLOYMENT.md)**. Kurzfassung:
+
 Für spätere Codeänderungen reicht:
 
 ```powershell

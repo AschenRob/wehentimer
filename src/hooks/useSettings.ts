@@ -1,11 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { pb, SETTINGS_COLLECTION } from '@/lib/pocketbase'
-import { DEFAULT_THRESHOLDS, type WehenSettings } from '@/types/settings'
-
-type ThresholdPatch = Partial<
-  Pick<WehenSettings, 'interval_minutes' | 'duration_minutes' | 'sustained_minutes'>
->
+import { DEFAULT_THRESHOLDS, type ThresholdPatch, type WehenSettings } from '@/types/settings'
 
 const FALLBACK: WehenSettings = { id: '', updated: '', ...DEFAULT_THRESHOLDS }
 
@@ -68,5 +64,12 @@ export function useSettings() {
     }
   }, [])
 
-  return { settings: settings ?? FALLBACK, isLoading, updateThresholds }
+  return {
+    // Vor dem Einspielen der Toleranz-Migration fehlt das Feld noch.
+    settings: settings
+      ? { ...settings, tolerance_count: settings.tolerance_count ?? DEFAULT_THRESHOLDS.tolerance_count }
+      : FALLBACK,
+    isLoading,
+    updateThresholds,
+  }
 }

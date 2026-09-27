@@ -11,6 +11,8 @@ export interface Thresholds {
   intervalMinutes: number
   durationMinutes: number
   sustainedMinutes: number
+  /** So viele Ausreißer (zu kurz ODER Abstand zu groß) zählen trotzdem zur Serie. */
+  toleranceCount: number
 }
 
 export type PatternStatus = 'idle' | 'observing' | 'approaching' | 'critical'
@@ -22,6 +24,8 @@ export interface Rule511Result {
   streakStartAt: string | null
   /** IDs der Wehen im aktuell laufenden Muster (für Hervorhebung in Charts). */
   streakIds: string[]
+  /** Davon tolerierte Ausreißer. */
+  outlierCount: number
   /** Wie lange das Muster bereits durchgehalten hat. */
   streakDurationMin: number
   /** Fortschritt Richtung `sustainedMinutes`, 0..1. */
@@ -42,6 +46,7 @@ const IDLE_RESULT: Rule511Result = {
   streakCount: 0,
   streakStartAt: null,
   streakIds: [],
+  outlierCount: 0,
   streakDurationMin: 0,
   progress: 0,
   avgIntervalMin: null,
@@ -70,17 +75,27 @@ export function evaluate511(
   }
 
   // Streak von der jüngsten Wehe rückwärts aufbauen: jede Wehe muss selbst
-  // lang genug sein UND nah genug an der direkt nachfolgenden liegen.
+  // lang genug sein UND nah genug an der direkt nachfolgenden liegen. Bis zu
+  // `toleranceCount` Ausreißer werden trotzdem in die Serie aufgenommen.
+  const tolerance = Math.max(0, Math.floor(thresholds.toleranceCount))
   const streak: Contraction[] = []
+  const outlierIds = new Set<string>()
   for (let i = sorted.length - 1; i >= 0; i--) {
     const current = sorted[i]
     const durationOk = current.duration_sec / 60 >= thresholds.durationMinutes
-    if (!durationOk) break
-    if (streak.length > 0) {
-      const gap = minutesBetween(new Date(current.start), new Date(streak[0].start))
-      if (gap > thresholds.intervalMinutes) break
+    const gapOk =
+      streak.length === 0 ||
+      minutesBetween(new Date(current.start), new Date(streak[0].start)) <= thresholds.intervalMinutes
+    if (!durationOk || !gapOk) {
+      if (outlierIds.size >= tolerance) break
+      outlierIds.add(current.id)
     }
     streak.unshift(current)
+  }
+  // Eine Serie beginnt nie mit einem Ausreißer.
+  while (streak.length > 0 && outlierIds.has(streak[0].id)) {
+    outlierIds.delete(streak[0].id)
+    streak.shift()
   }
 
   const streakCount = streak.length
@@ -113,6 +128,7 @@ export function evaluate511(
     streakCount,
     streakStartAt: streakStart?.start ?? null,
     streakIds: streak.map((c) => c.id),
+    outlierCount: outlierIds.size,
     streakDurationMin,
     progress,
     avgIntervalMin,

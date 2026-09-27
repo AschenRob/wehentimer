@@ -108,6 +108,22 @@ Projektstruktur (Repo-Root = Vite-App-Root, analog `otherApp`):
   Musters) anpassen — z. B. für die 4-1-1-Variante bei Mehrgebärenden. Die
   Einstellung liegt in der `settings`-Collection und gilt **geräteübergreifend**
   (Realtime-Sync), damit alle dieselbe Bewertung sehen.
+- **Ein Zeitraum-Dropdown für alle Charts**, Y-Achsen-Max im Verlaufsdiagramm;
+  Zeitleisten-Balken nach Stärke gefärbt (1 grün → 5 rot, ohne Stärke grau),
+  laufendes Muster als Linie unter der Zeitleiste. Chart-Einstellungen gelten
+  pro Gerät (localStorage).
+
+### Ansicht „Stilltracker“ (umschaltbar im Einstellungsdialog, pro Gerät)
+
+- Spalten analog zum Still-Protokoll der Hebamme: Start, Ende der Mahlzeit,
+  angelegt Minuten (mit Start/Ende verknüpft), von selbst aufgewacht,
+  zugefüttert MM/EM (ml), Urin, Stuhl, Gewicht (g), Besonderheiten.
+- Start/Stop-Timer; nach Stop öffnet ein Dialog mit Standardwerten
+  (aufgewacht ja, Zufütterung per Dropdown Muttermilch/Ersatzmilch + Menge
+  100 ml, Urin/Stuhl nein, Gewicht des letzten Eintrags bzw. 3.500 g beim
+  allerersten). Gespeichert wird erst beim Bestätigen, Verwerfen nur nach Warnung.
+- Auswertung: KPI-Karte (letzte 24 Std.), Tagesrhythmus, Pro Tag, Verlauf je
+  Mahlzeit, Nach Tageszeit, Gewichtsverlauf — mit Dropdowns zur Konfiguration.
 
 ## 4. Die 5-1-1-Regel — Logik
 
@@ -121,7 +137,10 @@ Reine Berechnungsfunktion `evaluate511()` in `src/lib/rule511.ts`:
 1. Wehen chronologisch sortieren, von der jüngsten rückwärts eine **Streak**
    aufbauen: Eine Wehe zählt zur Streak, wenn ihre eigene Dauer ≥
    Mindestdauer **und** der Abstand zur nachfolgenden Wehe ≤ Minuten-Abstand
-   ist. Die Streak bricht beim ersten Nichterfüllen ab.
+   ist. Die Streak bricht beim ersten Nichterfüllen ab — außer die
+   einstellbare **Toleranz** (`tolerance_count`, Standard 1) ist noch nicht
+   erschöpft: bis zu X Ausreißer insgesamt pro Serie zählen als „innerhalb“
+   (Lücke beliebig groß). Eine Serie beginnt nie mit einem Ausreißer.
 2. Ist die letzte Wehe bereits länger her als der eingestellte
    Minuten-Abstand, gilt das Muster als **aktuell unterbrochen** (Streak wird
    für die Statusanzeige auf 0 zurückgesetzt) — die Bewertung bezieht sich
@@ -162,12 +181,21 @@ weiter).
    - `interval_minutes` (Number, required, default `5`)
    - `duration_minutes` (Number, required, default `1`)
    - `sustained_minutes` (Number, required, default `60`)
+   - `tolerance_count` (Number, int ≥ 0, default `1`) — Ausreißer je Serie
    - `updated` (Autodate)
    - Regeln: `listRule`/`viewRule`/`updateRule` = `""` (öffentlich lesbar &
      änderbar), `createRule`/`deleteRule` = `null` (nur Superuser) — der
      Datensatz wird einmalig per Migration angelegt, das Frontend darf ihn nur
      aktualisieren, nicht neu erstellen oder löschen (verhindert versehentlich
      mehrere Settings-Zeilen).
+
+3. **`feedings`** — eine Mahlzeit im Stilltracker, Regeln wie `contractions`
+   (alle `""`):
+   - `start`, `end` (Date, required) — `end` = Ende der Mahlzeit
+   - `latch_minutes` (Number) — angelegt Minuten
+   - `woke_self`, `urine`, `stool`, `is_manual` (Bool)
+   - `supplement_mm_ml`, `supplement_em_ml`, `weight_g` (Number, 0 = keine Angabe)
+   - `note` (Text, max. 500) — Besonderheiten
 
 ## 6. Sicherheit & Absicherung (trotz "kein Login")
 
