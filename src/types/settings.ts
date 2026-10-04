@@ -1,5 +1,5 @@
 // Spiegelt die PocketBase-Collection "settings" (genau ein Datensatz, siehe
-// pocketbase/pb_migrations). Geräteübergreifend gültige 5-1-1-Schwellenwerte.
+// pocketbase/pb_migrations). Geräteübergreifend gültige 5-1-1-Schwellenwerte und App-Passcode.
 export interface WehenSettings {
   id: string
   interval_minutes: number
@@ -7,6 +7,8 @@ export interface WehenSettings {
   sustained_minutes: number
   /** Anzahl Ausreißer-Wehen, die eine Serie nicht abbrechen. */
   tolerance_count: number
+  /** SHA-256 des App-Passcodes (siehe lib/passcode.ts); leer = nicht eingerichtet. */
+  passcode_hash: string
   updated: string
 }
 
@@ -21,3 +23,5 @@ export const DEFAULT_THRESHOLDS = {
 >
 
 export type ThresholdPatch = Partial<typeof DEFAULT_THRESHOLDS>
+
+export type SettingsPatch = ThresholdPatch & Partial<Pick<WehenSettings, 'passcode_hash'>>

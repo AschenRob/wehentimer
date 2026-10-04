@@ -17,13 +17,14 @@ import { Slider } from '@/components/ui/slider'
 import type { Contraction, ContractionDraft } from '@/types/contraction'
 
 interface ContractionTimerProps {
+  babyId: string
   onSave: (draft: ContractionDraft) => Promise<Contraction>
   onUpdateIntensity: (id: string, intensity: number) => Promise<unknown>
 }
 
-export function ContractionTimer({ onSave, onUpdateIntensity }: ContractionTimerProps) {
+export function ContractionTimer({ babyId, onSave, onUpdateIntensity }: ContractionTimerProps) {
   const [startedAtIso, setStartedAtIso] = usePersistentState<string | null>(
-    'contractionTimerStart',
+    `contractionTimerStart.${babyId}`,
     null,
     isIsoStringOrNull,
   )

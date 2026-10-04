@@ -24,12 +24,13 @@ import {
 import type { WehenSettings } from '@/types/settings'
 
 interface WehenViewProps {
+  babyId: string
   settings: WehenSettings
 }
 
-export function WehenView({ settings }: WehenViewProps) {
+export function WehenView({ babyId, settings }: WehenViewProps) {
   const { contractions, isLoading, createContraction, updateContraction, deleteContraction } =
-    useContractions()
+    useContractions(babyId)
   const now = useNow()
   const [chartRange, setChartRange] = usePersistentState<ChartRange>(
     'wehen.chartRange',
@@ -68,6 +69,7 @@ export function WehenView({ settings }: WehenViewProps) {
 
       <TabsContent value="erfassung" className="flex flex-col gap-4">
         <ContractionTimer
+          babyId={babyId}
           onSave={createContraction}
           onUpdateIntensity={(id, intensity) => updateContraction(id, { intensity })}
         />

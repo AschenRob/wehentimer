@@ -1,7 +1,6 @@
-import type { Feeding } from '@/types/feeding'
+import { breastUsage, lastBreast, type BreastSide, type Feeding } from '@/types/feeding'
 
 const MS_PER_MIN = 60_000
-const MS_PER_DAY = 86_400_000
 
 function chronological(feedings: Feeding[]): Feeding[] {
   return [...feedings].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
@@ -15,6 +14,39 @@ function dayKey(date: Date): string {
   return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`
 }
 
+/** Abstand zwischen Ende der vorherigen und Start der nächsten Mahlzeit in Minuten (nie negativ). */
+export function gapMinutes(previous: Feeding, next: Feeding): number {
+  const gap = new Date(next.start).getTime() - new Date(previous.end).getTime()
+  return Math.max(0, gap / MS_PER_MIN)
+}
+
+/** Lokaler Tag von 00:00 bis (exklusiv) 00:00 des Folgetags, `daysAgo` Tage vor `now`. */
+export function localDayRange(now: Date, daysAgo: number): { from: number; to: number } {
+  const from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysAgo)
+  const to = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysAgo + 1)
+  return { from: from.getTime(), to: to.getTime() }
+}
+
+/**
+ * Ticks auf lokalen Mitternächten für Zeitachsen mit Tages-Beschriftung. Die Standard-Ticks
+ * liegen sonst nicht auf Tagesgrenzen und führen zu doppelten bzw. ungleich verteilten Tagen.
+ * `undefined` = Standard-Ticks (Zeitraum enthält weniger als zwei Mitternächte).
+ */
+export function dayTicks(min: number, max: number, maxTicks = 7): number[] | undefined {
+  const ticks: number[] = []
+  const first = startOfLocalDay(new Date(min))
+  for (
+    let d = first;
+    d.getTime() <= max;
+    d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)
+  ) {
+    if (d.getTime() >= min) ticks.push(d.getTime())
+  }
+  if (ticks.length < 2) return undefined
+  const step = Math.ceil(ticks.length / maxTicks)
+  return ticks.filter((_, i) => i % step === 0)
+}
+
 export interface DailyStats {
   dayStart: number
   count: number
@@ -25,6 +57,9 @@ export interface DailyStats {
   stool: number
   wokeSelf: number
   woken: number
+  breastLeft: number
+  breastRight: number
+  breastBoth: number
 }
 
 /** Kennzahlen je Kalendertag (lokale Zeit), lückenlos vom ersten bis zum letzten Tag. */
@@ -46,6 +81,9 @@ export function buildDailyStats(feedings: Feeding[]): DailyStats[] {
       stool: 0,
       wokeSelf: 0,
       woken: 0,
+      breastLeft: 0,
+      breastRight: 0,
+      breastBoth: 0,
     })
   }
   for (const f of sorted) {
@@ -59,6 +97,10 @@ export function buildDailyStats(feedings: Feeding[]): DailyStats[] {
     if (f.stool) entry.stool += 1
     if (f.woke_self) entry.wokeSelf += 1
     else entry.woken += 1
+    const usage = breastUsage(f)
+    if (usage === 'left') entry.breastLeft += 1
+    else if (usage === 'right') entry.breastRight += 1
+    else if (usage === 'both') entry.breastBoth += 1
   }
   return [...byDay.values()]
 }
@@ -72,21 +114,17 @@ export interface FeedingPoint {
   supplementMl: number
 }
 
-/** Ein Punkt je Mahlzeit, chronologisch; Abstand = Start zu Start. */
+/** Ein Punkt je Mahlzeit, chronologisch; Abstand = Ende der vorherigen bis Start. */
 export function buildFeedingSeries(feedings: Feeding[]): FeedingPoint[] {
   const sorted = chronological(feedings)
-  return sorted.map((f, i) => {
-    const start = new Date(f.start).getTime()
-    const prevStart = i > 0 ? new Date(sorted[i - 1].start).getTime() : null
-    return {
-      timestamp: start,
-      intervalHours: prevStart != null ? (start - prevStart) / (60 * MS_PER_MIN) : null,
-      latchMinutes: f.latch_minutes,
-      mmMl: f.supplement_mm_ml,
-      emMl: f.supplement_em_ml,
-      supplementMl: f.supplement_mm_ml + f.supplement_em_ml,
-    }
-  })
+  return sorted.map((f, i) => ({
+    timestamp: new Date(f.start).getTime(),
+    intervalHours: i > 0 ? gapMinutes(sorted[i - 1], f) / 60 : null,
+    latchMinutes: f.latch_minutes,
+    mmMl: f.supplement_mm_ml,
+    emMl: f.supplement_em_ml,
+    supplementMl: f.supplement_mm_ml + f.supplement_em_ml,
+  }))
 }
 
 export interface WeightPoint {
@@ -146,49 +184,50 @@ export function buildHourDistribution(
 export interface FeedingKpis {
   lastStart: string | null
   lastEnd: string | null
-  minutesSinceLastStart: number | null
-  count24h: number
-  latch24h: number
-  mm24h: number
-  em24h: number
-  urine24h: number
-  stool24h: number
-  woken24h: number
-  avgIntervalMin24h: number | null
+  minutesSinceLastEnd: number | null
+  lastBreast: BreastSide | null
+  /** Beginn (00:00) des gestrigen Tages, auf den sich die Summen beziehen. */
+  yesterdayStart: number
+  countYesterday: number
+  latchYesterday: number
+  urineYesterday: number
+  stoolYesterday: number
+  wokenYesterday: number
+  avgIntervalMinYesterday: number | null
   currentWeight: number | null
   firstWeight: number | null
 }
 
+/** Live-Abstand zur letzten Mahlzeit plus Summen für den gestrigen Kalendertag (00:00–23:59). */
 export function computeFeedingKpis(feedings: Feeding[], now: Date): FeedingKpis {
   const sorted = chronological(feedings)
   const last = sorted[sorted.length - 1] ?? null
-  const cutoff = now.getTime() - MS_PER_DAY
-  const recent = sorted.filter((f) => new Date(f.start).getTime() >= cutoff)
+  const { from, to } = localDayRange(now, 1)
   const weights = sorted.filter((f) => f.weight_g > 0)
 
-  let avgIntervalMin24h: number | null = null
-  if (recent.length >= 2) {
-    const span =
-      new Date(recent[recent.length - 1].start).getTime() - new Date(recent[0].start).getTime()
-    avgIntervalMin24h = span / MS_PER_MIN / (recent.length - 1)
+  const inDay = (f: Feeding) => {
+    const start = new Date(f.start).getTime()
+    return start >= from && start < to
   }
-
-  const sum = (pick: (f: Feeding) => number) => recent.reduce((total, f) => total + pick(f), 0)
+  const day = sorted.filter(inDay)
+  const gaps = sorted.flatMap((f, i) => (i > 0 && inDay(f) ? [gapMinutes(sorted[i - 1], f)] : []))
+  const sum = (pick: (f: Feeding) => number) => day.reduce((total, f) => total + pick(f), 0)
 
   return {
     lastStart: last?.start ?? null,
     lastEnd: last?.end ?? null,
-    minutesSinceLastStart: last
-      ? (now.getTime() - new Date(last.start).getTime()) / MS_PER_MIN
+    minutesSinceLastEnd: last
+      ? Math.max(0, (now.getTime() - new Date(last.end).getTime()) / MS_PER_MIN)
       : null,
-    count24h: recent.length,
-    latch24h: sum((f) => f.latch_minutes),
-    mm24h: sum((f) => f.supplement_mm_ml),
-    em24h: sum((f) => f.supplement_em_ml),
-    urine24h: sum((f) => (f.urine ? 1 : 0)),
-    stool24h: sum((f) => (f.stool ? 1 : 0)),
-    woken24h: sum((f) => (f.woke_self ? 0 : 1)),
-    avgIntervalMin24h,
+    lastBreast: last ? lastBreast(last) : null,
+    yesterdayStart: from,
+    countYesterday: day.length,
+    latchYesterday: sum((f) => f.latch_minutes),
+    urineYesterday: sum((f) => (f.urine ? 1 : 0)),
+    stoolYesterday: sum((f) => (f.stool ? 1 : 0)),
+    wokenYesterday: sum((f) => (f.woke_self ? 0 : 1)),
+    avgIntervalMinYesterday:
+      gaps.length > 0 ? gaps.reduce((total, g) => total + g, 0) / gaps.length : null,
     currentWeight: weights[weights.length - 1]?.weight_g ?? null,
     firstWeight: weights[0]?.weight_g ?? null,
   }

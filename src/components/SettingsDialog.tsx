@@ -13,8 +13,18 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
-import { APP_VIEW_META, APP_VIEW_OPTIONS, type AppView } from '@/lib/appView'
-import { DEFAULT_THRESHOLDS, type ThresholdPatch, type WehenSettings } from '@/types/settings'
+import { BabySettings } from '@/components/settings/BabySettings'
+import { PasscodeSettings } from '@/components/settings/PasscodeSettings'
+import {
+  APP_LAYOUT_LABELS,
+  APP_LAYOUT_OPTIONS,
+  APP_VIEW_META,
+  APP_VIEW_OPTIONS,
+  type AppLayout,
+  type AppView,
+} from '@/lib/appView'
+import type { Baby } from '@/types/baby'
+import { DEFAULT_THRESHOLDS, type SettingsPatch, type WehenSettings } from '@/types/settings'
 
 // Markiert den kompletten Feldinhalt beim Fokussieren, damit Tippen die
 // vorhandene "0" ersetzt statt "07" entstehen zu lassen.
@@ -25,11 +35,41 @@ function selectAllOnFocus(e: FocusEvent<HTMLInputElement>) {
 interface SettingsDialogProps {
   view: AppView
   onViewChange: (view: AppView) => void
+  layout: AppLayout
+  onLayoutChange: (layout: AppLayout) => void
   settings: WehenSettings
-  onSave: (patch: ThresholdPatch) => Promise<unknown>
+  onSave: (patch: SettingsPatch) => Promise<unknown>
+  /** Soll-Abstand (Std) für die gestrichelte Linie im Still-Verlauf; 0 = aus. */
+  targetIntervalHours: number
+  onTargetIntervalHoursChange: (hours: number) => void
+  babies: Baby[]
+  activeBabyId: string
+  onSelectBaby: (id: string) => void
+  onCreateBaby: (name: string) => Promise<unknown>
+  onRenameBaby: (id: string, name: string) => Promise<unknown>
+  onDeleteBaby: (id: string) => Promise<unknown>
+  onChangePasscode: (code: string) => Promise<unknown>
+  onLock: () => void
 }
 
-export function SettingsDialog({ view, onViewChange, settings, onSave }: SettingsDialogProps) {
+export function SettingsDialog({
+  view,
+  onViewChange,
+  layout,
+  onLayoutChange,
+  settings,
+  onSave,
+  targetIntervalHours,
+  onTargetIntervalHoursChange,
+  babies,
+  activeBabyId,
+  onSelectBaby,
+  onCreateBaby,
+  onRenameBaby,
+  onDeleteBaby,
+  onChangePasscode,
+  onLock,
+}: SettingsDialogProps) {
   const [open, setOpen] = useState(false)
   const [intervalMinutes, setIntervalMinutes] = useState(settings.interval_minutes)
   // Mindestdauer wird dem Menschen in Sekunden angezeigt/eingegeben, aber wie
@@ -83,7 +123,7 @@ export function SettingsDialog({ view, onViewChange, settings, onSave }: Setting
       <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Einstellungen</DialogTitle>
-          <DialogDescription>Die Ansicht gilt nur für dieses Gerät.</DialogDescription>
+          <DialogDescription>Ansicht und Layout gelten nur für dieses Gerät.</DialogDescription>
         </DialogHeader>
         <div className="grid gap-2">
           <Label>Ansicht</Label>
@@ -102,6 +142,61 @@ export function SettingsDialog({ view, onViewChange, settings, onSave }: Setting
             ))}
           </div>
         </div>
+
+        <div className="grid gap-2">
+          <Label>Layout</Label>
+          <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Layout">
+            {APP_LAYOUT_OPTIONS.map((option) => (
+              <Button
+                key={option}
+                type="button"
+                role="radio"
+                aria-checked={layout === option}
+                variant={layout === option ? 'default' : 'outline'}
+                onClick={() => onLayoutChange(option)}
+              >
+                {APP_LAYOUT_LABELS[option]}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        <Separator />
+        <BabySettings
+          babies={babies}
+          activeBabyId={activeBabyId}
+          onSelect={onSelectBaby}
+          onCreate={onCreateBaby}
+          onRename={onRenameBaby}
+          onDelete={onDeleteBaby}
+        />
+
+        {view === 'still' && (
+          <>
+            <Separator />
+            <div className="grid gap-2">
+              <div>
+                <h3 className="font-heading text-sm font-medium">Stillen</h3>
+                <p className="text-sm text-muted-foreground">Gilt nur für dieses Gerät.</p>
+              </div>
+              <Label htmlFor="target-interval">Soll-Abstand im Verlauf je Mahlzeit (Stunden)</Label>
+              <Input
+                id="target-interval"
+                type="number"
+                min={0}
+                step="any"
+                inputMode="decimal"
+                value={targetIntervalHours}
+                onChange={(e) => onTargetIntervalHoursChange(Math.max(0, Number(e.target.value)))}
+                onFocus={selectAllOnFocus}
+                className="w-32"
+              />
+              <p className="text-xs text-muted-foreground">
+                Gestrichelte Linie im Diagramm „Verlauf je Mahlzeit“ (Abstand). 0 = keine Linie.
+              </p>
+            </div>
+          </>
+        )}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4" hidden={view !== 'wehen'}>
           <Separator />
@@ -179,6 +274,9 @@ export function SettingsDialog({ view, onViewChange, settings, onSave }: Setting
             </Button>
           </DialogFooter>
         </form>
+
+        <Separator />
+        <PasscodeSettings onChange={onChangePasscode} onLock={onLock} />
       </DialogContent>
     </Dialog>
   )

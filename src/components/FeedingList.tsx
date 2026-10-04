@@ -1,5 +1,6 @@
 import { Loader2 } from 'lucide-react'
 import { FeedingListItem } from '@/components/FeedingListItem'
+import { gapMinutes } from '@/lib/feedingStats'
 import type { Feeding, FeedingDraft } from '@/types/feeding'
 
 interface FeedingListProps {
@@ -38,9 +39,7 @@ export function FeedingList({
       {feedings.map((f, i) => {
         // Liste ist neueste zuerst -> "vorherige" Mahlzeit steht ein Index weiter hinten.
         const previous = feedings[i + 1]
-        const intervalMin = previous
-          ? (new Date(f.start).getTime() - new Date(previous.start).getTime()) / 60_000
-          : null
+        const intervalMin = previous ? gapMinutes(previous, f) : null
         return (
           <FeedingListItem
             key={f.id}

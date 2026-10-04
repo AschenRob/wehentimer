@@ -1,9 +1,12 @@
 import { Clock3, Scale } from 'lucide-react'
-import { formatDecimal, formatGrams, formatHoursMinutes, formatMl, formatTime } from '@/lib/format'
+import { cn } from '@/lib/utils'
+import { formatDay, formatDecimal, formatGrams, formatHoursMinutes, formatTime } from '@/lib/format'
 import type { FeedingKpis } from '@/lib/feedingStats'
+import { BREAST_LABELS } from '@/types/feeding'
 
 interface FeedingKpiCardProps {
   kpis: FeedingKpis
+  wide?: boolean
 }
 
 function Kpi({ label, value, hint }: { label: string; value: string; hint?: string }) {
@@ -16,8 +19,8 @@ function Kpi({ label, value, hint }: { label: string; value: string; hint?: stri
   )
 }
 
-/** Überblick: letzte Mahlzeit live + Summen der letzten 24 Stunden. */
-export function FeedingKpiCard({ kpis }: FeedingKpiCardProps) {
+/** Überblick: letzte Mahlzeit live + Summen des gestrigen Tages (00:00–23:59). */
+export function FeedingKpiCard({ kpis, wide = false }: FeedingKpiCardProps) {
   const weightDelta =
     kpis.currentWeight != null && kpis.firstWeight != null
       ? kpis.currentWeight - kpis.firstWeight
@@ -25,54 +28,69 @@ export function FeedingKpiCard({ kpis }: FeedingKpiCardProps) {
   const weightDeltaPct =
     weightDelta != null && kpis.firstWeight ? (weightDelta / kpis.firstWeight) * 100 : null
 
+  const weight = (
+    <div
+      className={cn(
+        'flex flex-wrap items-center gap-x-4 gap-y-1 text-sm',
+        wide ? 'justify-end text-right' : 'mt-4',
+      )}
+    >
+      <span className="flex items-center gap-1.5">
+        <Scale className="size-4 text-primary" />
+        {kpis.currentWeight != null ? formatGrams(kpis.currentWeight) : 'Kein Gewicht erfasst'}
+      </span>
+      {weightDelta != null && weightDelta !== 0 && weightDeltaPct != null && (
+        <span className="text-muted-foreground">
+          {weightDelta > 0 ? '+' : '−'}
+          {formatGrams(Math.abs(weightDelta))} ({weightDelta > 0 ? '+' : '−'}
+          {formatDecimal(Math.abs(weightDeltaPct))} %) seit erstem Eintrag
+        </span>
+      )}
+    </div>
+  )
+
   return (
     <div className="rounded-xl border border-primary/30 bg-primary/5 p-4">
-      <div className="flex items-center gap-2">
-        <Clock3 className="size-5 shrink-0 text-primary" />
-        <h3 className="font-semibold">
-          {kpis.minutesSinceLastStart != null
-            ? `Letzte Mahlzeit vor ${formatHoursMinutes(kpis.minutesSinceLastStart)}`
-            : 'Noch keine Mahlzeit erfasst'}
-        </h3>
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-2">
+          <Clock3 className="size-5 shrink-0 text-primary" />
+          <h3 className="font-semibold">
+            {kpis.minutesSinceLastEnd != null
+              ? `Letzte Mahlzeit vor ${formatHoursMinutes(kpis.minutesSinceLastEnd)}`
+              : 'Noch keine Mahlzeit erfasst'}
+          </h3>
+        </div>
+        {wide && weight}
       </div>
       {kpis.lastStart && kpis.lastEnd && (
         <p className="mt-1 text-sm text-muted-foreground">
-          {formatTime(kpis.lastStart)}–{formatTime(kpis.lastEnd)} Uhr (Abstand gerechnet ab Start)
+          {formatTime(kpis.lastStart)}–{formatTime(kpis.lastEnd)} Uhr (Abstand gerechnet ab Ende)
+          {kpis.lastBreast && <> · zuletzt Brust {BREAST_LABELS[kpis.lastBreast]}</>}
         </p>
       )}
 
       <p className="mt-4 mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-        Letzte 24 Stunden
+        Letzte vollständige 24 Stunden · {formatDay(new Date(kpis.yesterdayStart))}
       </p>
-      <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
+      <dl className={cn('grid gap-3 text-sm', wide ? 'grid-cols-4' : 'grid-cols-2')}>
         <Kpi
           label="Mahlzeiten"
-          value={String(kpis.count24h)}
-          hint={kpis.woken24h > 0 ? `davon ${kpis.woken24h}× geweckt` : undefined}
+          value={String(kpis.countYesterday)}
+          hint={kpis.wokenYesterday > 0 ? `davon ${kpis.wokenYesterday}× geweckt` : undefined}
         />
         <Kpi
           label="Ø Abstand"
-          value={kpis.avgIntervalMin24h != null ? formatHoursMinutes(kpis.avgIntervalMin24h) : '–'}
+          value={
+            kpis.avgIntervalMinYesterday != null
+              ? formatHoursMinutes(kpis.avgIntervalMinYesterday)
+              : '–'
+          }
         />
-        <Kpi label="Angelegt gesamt" value={formatHoursMinutes(kpis.latch24h)} />
-        <Kpi label="Zugefüttert MM" value={formatMl(kpis.mm24h)} />
-        <Kpi label="Zugefüttert EM" value={formatMl(kpis.em24h)} />
-        <Kpi label="Windeln Urin / Stuhl" value={`${kpis.urine24h} / ${kpis.stool24h}`} />
+        <Kpi label="Angelegt gesamt" value={formatHoursMinutes(kpis.latchYesterday)} />
+        <Kpi label="Windeln Urin / Stuhl" value={`${kpis.urineYesterday} / ${kpis.stoolYesterday}`} />
       </dl>
 
-      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-        <span className="flex items-center gap-1.5">
-          <Scale className="size-4 text-primary" />
-          {kpis.currentWeight != null ? formatGrams(kpis.currentWeight) : 'Kein Gewicht erfasst'}
-        </span>
-        {weightDelta != null && weightDelta !== 0 && weightDeltaPct != null && (
-          <span className="text-muted-foreground">
-            {weightDelta > 0 ? '+' : '−'}
-            {formatGrams(Math.abs(weightDelta))} ({weightDelta > 0 ? '+' : '−'}
-            {formatDecimal(Math.abs(weightDeltaPct))} %) seit erstem Eintrag
-          </span>
-        )}
-      </div>
+      {!wide && weight}
     </div>
   )
 }

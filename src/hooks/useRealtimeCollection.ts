@@ -46,11 +46,12 @@ interface Labels {
 }
 
 /**
- * Lädt alle Datensätze einer Collection (neueste zuerst) und hält sie per
+ * Lädt alle Datensätze eines Babys aus einer Collection (neueste zuerst) und hält sie per
  * Realtime-Subscription geräteübergreifend synchron, inkl. optimistischer Updates.
  */
 export function useRealtimeCollection<T extends TimedRecord, D extends object>(
   collectionName: string,
+  babyId: string,
   labels: Labels,
 ) {
   const [items, setItems] = useState<T[]>([])
@@ -63,11 +64,13 @@ export function useRealtimeCollection<T extends TimedRecord, D extends object>(
 
   useEffect(() => {
     let isCancelled = false
+    const filter = pb.filter('baby = {:baby}', { baby: babyId })
 
     async function load() {
       try {
         const records = await pb.collection(collectionName).getFullList<T>({
           sort: '-start',
+          filter,
           requestKey: null,
         })
         if (!isCancelled) setItems(records)
@@ -82,21 +85,25 @@ export function useRealtimeCollection<T extends TimedRecord, D extends object>(
 
     let unsubscribe: (() => void) | undefined
     pb.collection(collectionName)
-      .subscribe<T>('*', (e) => {
-        setItems((prev) => {
-          if (e.action === 'create') {
-            if (prev.some((c) => c.id === e.record.id)) return prev
-            return dedupeAndSort([e.record, ...prev])
-          }
-          if (e.action === 'update') {
-            return dedupeAndSort(prev.map((c) => (c.id === e.record.id ? e.record : c)))
-          }
-          if (e.action === 'delete') {
-            return prev.filter((c) => c.id !== e.record.id)
-          }
-          return prev
-        })
-      })
+      .subscribe<T>(
+        '*',
+        (e) => {
+          setItems((prev) => {
+            if (e.action === 'create') {
+              if (prev.some((c) => c.id === e.record.id)) return prev
+              return dedupeAndSort([e.record, ...prev])
+            }
+            if (e.action === 'update') {
+              return dedupeAndSort(prev.map((c) => (c.id === e.record.id ? e.record : c)))
+            }
+            if (e.action === 'delete') {
+              return prev.filter((c) => c.id !== e.record.id)
+            }
+            return prev
+          })
+        },
+        { filter },
+      )
       .then((unsub) => {
         if (isCancelled) unsub()
         else unsubscribe = unsub
@@ -106,16 +113,17 @@ export function useRealtimeCollection<T extends TimedRecord, D extends object>(
       isCancelled = true
       unsubscribe?.()
     }
-  }, [collectionName, labels.plural])
+  }, [collectionName, babyId, labels.plural])
 
   const create = useCallback(
     async (draft: D) => {
       const optimisticId = `optimistic-${randomId()}`
       const now = new Date().toISOString()
-      const optimistic = { id: optimisticId, created: now, updated: now, ...draft } as unknown as T
+      const payload = { ...draft, baby: babyId }
+      const optimistic = { id: optimisticId, created: now, updated: now, ...payload } as unknown as T
       setItems((prev) => dedupeAndSort([optimistic, ...prev]))
       try {
-        const record = await pb.collection(collectionName).create<T>(draft, { requestKey: null })
+        const record = await pb.collection(collectionName).create<T>(payload, { requestKey: null })
         setItems((prev) => {
           // Die Realtime-Subscription kann den neuen Datensatz per SSE schneller
           // liefern als diese HTTP-Antwort zurückkommt. Ist das passiert, steht
@@ -134,7 +142,7 @@ export function useRealtimeCollection<T extends TimedRecord, D extends object>(
         throw err
       }
     },
-    [collectionName, labels.singular],
+    [collectionName, babyId, labels.singular],
   )
 
   const update = useCallback(

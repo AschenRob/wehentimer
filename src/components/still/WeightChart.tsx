@@ -10,7 +10,7 @@ import {
 import { ChartCard } from '@/components/charts/ChartCard'
 import { OptionSelect } from '@/components/charts/OptionSelect'
 import { oneOf, usePersistentState } from '@/hooks/usePersistentState'
-import { buildWeightSeries } from '@/lib/feedingStats'
+import { buildWeightSeries, dayTicks } from '@/lib/feedingStats'
 import { formatDateTime, formatDay, formatGrams } from '@/lib/format'
 import type { Feeding } from '@/types/feeding'
 
@@ -34,6 +34,7 @@ export function WeightChart({ feedings }: WeightChartProps) {
     oneOf(MODE_OPTIONS),
   )
   const data = buildWeightSeries(feedings, mode)
+  const xTicks = data.length > 1 ? dayTicks(data[0].timestamp, data[data.length - 1].timestamp) : undefined
 
   return (
     <ChartCard
@@ -61,6 +62,7 @@ export function WeightChart({ feedings }: WeightChartProps) {
               type="number"
               scale="time"
               domain={['dataMin', 'dataMax']}
+              ticks={xTicks}
               tickFormatter={(v) => formatDay(new Date(v))}
               tick={{ fontSize: 11 }}
             />

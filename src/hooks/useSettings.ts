@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { pb, SETTINGS_COLLECTION } from '@/lib/pocketbase'
-import { DEFAULT_THRESHOLDS, type ThresholdPatch, type WehenSettings } from '@/types/settings'
+import { DEFAULT_THRESHOLDS, type SettingsPatch, type WehenSettings } from '@/types/settings'
 
-const FALLBACK: WehenSettings = { id: '', updated: '', ...DEFAULT_THRESHOLDS }
+const FALLBACK: WehenSettings = { id: '', updated: '', passcode_hash: '', ...DEFAULT_THRESHOLDS }
 
-/** Lädt den 5-1-1-Schwellenwert-Singleton, hält ihn geräteübergreifend synchron. */
+/** Lädt den Einstellungs-Singleton (Schwellenwerte, Passcode), hält ihn geräteübergreifend synchron. */
 export function useSettings() {
   const [settings, setSettings] = useState<WehenSettings | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -50,7 +50,7 @@ export function useSettings() {
     }
   }, [])
 
-  const updateThresholds = useCallback(async (patch: ThresholdPatch) => {
+  const updateSettings = useCallback(async (patch: SettingsPatch) => {
     if (!idRef.current) return
     try {
       const record = await pb
@@ -65,11 +65,17 @@ export function useSettings() {
   }, [])
 
   return {
-    // Vor dem Einspielen der Toleranz-Migration fehlt das Feld noch.
+    // Vor dem Einspielen der Migrationen fehlen neuere Felder noch.
     settings: settings
-      ? { ...settings, tolerance_count: settings.tolerance_count ?? DEFAULT_THRESHOLDS.tolerance_count }
+      ? {
+          ...settings,
+          tolerance_count: settings.tolerance_count ?? DEFAULT_THRESHOLDS.tolerance_count,
+          passcode_hash: settings.passcode_hash ?? '',
+        }
       : FALLBACK,
+    /** true, sobald die Einstellungen vom Server geladen wurden. */
+    isLoaded: settings !== null,
     isLoading,
-    updateThresholds,
+    updateSettings,
   }
 }

@@ -1,6 +1,7 @@
 // Spiegelt die PocketBase-Collection "contractions" (siehe pocketbase/pb_migrations).
 export interface Contraction {
   id: string
+  baby: string
   start: string // ISO datetime
   end: string // ISO datetime
   duration_sec: number

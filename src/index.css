@@ -91,6 +91,9 @@
     --status-observing: #64809b;
     --status-approaching: #c99a4a;
     --status-critical: #b3473d;
+    /* Windeln: Urin gelb, Stuhl dunkelbraun (Badges und Charts). */
+    --urine: #e3c038;
+    --stool: #6b4423;
 }
 
 .dark {
@@ -129,6 +132,8 @@
     --status-observing: #8ba6bf;
     --status-approaching: #d9ad5f;
     --status-critical: #d97a6f;
+    --urine: #ecd04e;
+    --stool: #8a5a33;
 }
 
 @layer base {

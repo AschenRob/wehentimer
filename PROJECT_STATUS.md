@@ -60,6 +60,36 @@ Erweiterung 2026-09-27 (noch nicht deployt):
   `src/views/WehenView.tsx`/`StillView.tsx`; gemeinsamer Realtime-Hook
   `useRealtimeCollection` (von `useContractions`/`useFeedings` genutzt).
 
+Erweiterung 2026-10-02 (noch nicht deployt, neue Migrationen `1790000040`/`50`/`60`):
+- **Mehrere Babys:** Collection `babies`, Relation `baby` (required, cascadeDelete)
+  an `contractions`/`feedings`; bestehende Daten gehören nach der Migration zu
+  „Baby 1“. Aktives Baby pro Gerät (`wehentimer.babyId`), Verwaltung
+  (anlegen/umbenennen/löschen/wechseln) nur im Einstellungsdialog; Views werden per
+  `key` je Baby neu gemountet, Timer-Keys im localStorage enthalten die Baby-ID.
+  5-1-1-Einstellungen bleiben global. `backups/seed-dev.ps1` setzt das erste Baby.
+- **Passcode (4-stellig, Standard 1111):** reine UI-Sperre, SHA-256 in
+  `settings.passcode_hash` (`src/lib/passcode.ts`, eigene Implementierung wegen
+  fehlendem `crypto.subtle` per LAN-HTTP; muss zum Hash in Migration `1790000060`
+  passen). Gerät bleibt entsperrt (`wehentimer.unlockedHash`), bis „Jetzt sperren“;
+  nach Code-Änderung müssen andere Geräte neu entsperren. API bleibt technisch offen.
+- **Stillen:** Brust je Mahlzeit (`breast_first` links/rechts, `breast_second`
+  links/rechts/keine; Standard links/keine, leer bei Altdaten; Badge „Letzte Brust“
+  in der Liste + KPI-Karte), Zufütterung MM und EM getrennt (Standard 0 ml),
+  Abstand überall ab **Ende** der vorherigen Mahlzeit, KPI-Karte bezieht sich auf
+  **gestern 00:00–23:59** (ohne MM/EM-Summen), Zeitraum „Ganzer letzter Tag“,
+  Listen-Badges ohne Gewicht/Timer/aufgewacht, Urin ocker/Stuhl dunkelbraun.
+- **Charts:** Brust in „Pro Tag“ (1. Brust) und Tagesrhythmus (Farbe), grüner
+  Zielbereich 8–12 in „Pro Tag“ (Mahlzeiten), „Verlauf je Mahlzeit“ mit Y-Max-Dropdown
+  und gestrichelter Soll-Linie (Standard 3 Std, Einstellungen → Stillen, pro Gerät
+  `wehentimer.still.targetIntervalHours`, 0 = aus; nur Kennzahl „Abstand“).
+  Zeitachsen (Verlauf/Gewicht) nutzen Ticks auf lokalen Mitternächten (`dayTicks`) —
+  Ursache des ungleichmäßigen Tagesabstands (30.09./01.10.): Standard-Ticks lagen
+  nicht auf Tagesgrenzen, daher doppelte/ungleich verteilte Tageslabels.
+- **Dropdowns (`OptionSelect`):** bei geöffnetem Dropdown wechseln Pfeil hoch/runter und
+  Scrollrad die Auswahl live, Enter schließt (TV-Fernbedienung).
+- **Layout „Desktop / TV“** (Einstellungen, pro Gerät): volle Breite, Charts der
+  Still-Auswertung zweispaltig, KPI-Karte gestreckt.
+
 ## 2. Lokal starten
 
 Zwei Terminals, **bewusst andere Ports als otherApp** (dort 5173/8090):
@@ -197,5 +227,6 @@ unbehandelten Fehler fehlschlagen (bereits gefixt, s.u.).
   über `http://<NAS-LAN-IP>:8092/_/` erreichbar (umgeht NPM/Hairpin).
 - Für Updates nach der Ersteinrichtung: `prepare-deploy.ps1` ausführen,
   `deploy/`-Inhalt aufs NAS hochladen (siehe INITIAL_DEPLOYMENT.md
-  Abschnitt 10). Die neuen Migrationen (`1790000020`, `1790000030`) laufen
-  beim Neustart des PocketBase-Containers automatisch.
+  Abschnitt 10). Die neuen Migrationen (`1790000020` bis `1790000060`) laufen
+  beim Neustart des PocketBase-Containers automatisch (vorher Backup, siehe
+  DEPLOYMENT.md; `1790000050` ordnet alle Altdaten „Baby 1“ zu).

@@ -4,12 +4,12 @@ import type { Contraction, ContractionDraft } from '@/types/contraction'
 
 const LABELS = { singular: 'Wehe', plural: 'Wehen' }
 
-/** Lädt alle Wehen, hält sie per Realtime-Subscription geräteübergreifend synchron. */
-export function useContractions() {
+/** Lädt alle Wehen eines Babys, hält sie per Realtime-Subscription geräteübergreifend synchron. */
+export function useContractions(babyId: string) {
   const { items, isLoading, create, update, remove } = useRealtimeCollection<
     Contraction,
     ContractionDraft
-  >(CONTRACTIONS_COLLECTION, LABELS)
+  >(CONTRACTIONS_COLLECTION, babyId, LABELS)
 
   return {
     contractions: items,

@@ -3,6 +3,7 @@ import {
   Legend,
   Line,
   LineChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -11,7 +12,12 @@ import {
 import { ChartCard } from '@/components/charts/ChartCard'
 import { OptionSelect } from '@/components/charts/OptionSelect'
 import { oneOf, usePersistentState } from '@/hooks/usePersistentState'
-import { buildFeedingSeries, type FeedingPoint } from '@/lib/feedingStats'
+import {
+  INTERVAL_Y_MAX_LABELS,
+  INTERVAL_Y_MAX_OPTIONS,
+  type IntervalYMax,
+} from '@/lib/chartRange'
+import { buildFeedingSeries, dayTicks, type FeedingPoint } from '@/lib/feedingStats'
 import { formatDateTime, formatDay, formatDecimal, formatTime } from '@/lib/format'
 import type { Feeding } from '@/types/feeding'
 
@@ -39,32 +45,55 @@ const METRIC_LINES: Record<
 
 interface FeedingTrendChartProps {
   feedings: Feeding[]
+  /** Gestrichelte Soll-Linie im Modus "Abstand" in Stunden; 0 = keine Linie. */
+  targetIntervalHours: number
 }
 
 /** Verlauf je Mahlzeit auf echter Zeitachse. */
-export function FeedingTrendChart({ feedings }: FeedingTrendChartProps) {
+export function FeedingTrendChart({ feedings, targetIntervalHours }: FeedingTrendChartProps) {
   const [metric, setMetric] = usePersistentState<TrendMetric>(
     'still.trendMetric',
     'interval',
     oneOf(METRIC_OPTIONS),
+  )
+  const [yMax, setYMax] = usePersistentState<IntervalYMax>(
+    'still.trendYMax',
+    'auto',
+    oneOf(INTERVAL_Y_MAX_OPTIONS),
   )
   const data = buildFeedingSeries(feedings)
   const lines = METRIC_LINES[metric]
   const unitByName = Object.fromEntries(lines.map((l) => [l.name, l.unit]))
   const spansDays =
     data.length > 1 && data[data.length - 1].timestamp - data[0].timestamp > 20 * 3_600_000
+  const xTicks = spansDays
+    ? dayTicks(data[0].timestamp, data[data.length - 1].timestamp)
+    : undefined
+  const isInterval = metric === 'interval'
+  const fixedMax = isInterval && yMax !== 'auto' ? Number(yMax) : null
 
   return (
     <ChartCard
       title="Verlauf je Mahlzeit"
       actions={
-        <OptionSelect
-          value={metric}
-          onChange={setMetric}
-          options={METRIC_OPTIONS}
-          labels={METRIC_LABELS}
-          label="Kennzahl für Verlauf"
-        />
+        <>
+          <OptionSelect
+            value={metric}
+            onChange={setMetric}
+            options={METRIC_OPTIONS}
+            labels={METRIC_LABELS}
+            label="Kennzahl für Verlauf"
+          />
+          {isInterval && (
+            <OptionSelect
+              value={yMax}
+              onChange={setYMax}
+              options={INTERVAL_Y_MAX_OPTIONS}
+              labels={INTERVAL_Y_MAX_LABELS}
+              label="Maximum der Y-Achse"
+            />
+          )}
+        </>
       }
     >
       {data.length < 2 ? (
@@ -80,13 +109,32 @@ export function FeedingTrendChart({ feedings }: FeedingTrendChartProps) {
               type="number"
               scale="time"
               domain={['dataMin', 'dataMax']}
+              ticks={xTicks}
               tickFormatter={(v) => (spansDays ? formatDay(new Date(v)) : formatTime(new Date(v)))}
               angle={-35}
               textAnchor="end"
               height={40}
               tick={{ fontSize: 11 }}
             />
-            <YAxis tick={{ fontSize: 12 }} domain={[0, 'auto']} />
+            <YAxis
+              tick={{ fontSize: 12 }}
+              domain={[0, fixedMax ?? 'auto']}
+              allowDataOverflow={fixedMax != null}
+            />
+            {isInterval && targetIntervalHours > 0 && (
+              <ReferenceLine
+                y={targetIntervalHours}
+                stroke="var(--chart-4)"
+                strokeDasharray="6 4"
+                ifOverflow={fixedMax != null ? 'hidden' : 'extendDomain'}
+                label={{
+                  value: `${formatDecimal(targetIntervalHours)} Std`,
+                  position: 'insideTopRight',
+                  fontSize: 11,
+                  fill: 'var(--chart-4)',
+                }}
+              />
+            )}
             <Tooltip
               labelFormatter={(label) => formatDateTime(new Date(label as number))}
               formatter={(value, name) => [

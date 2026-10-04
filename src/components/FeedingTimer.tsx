@@ -20,20 +20,21 @@ function isPendingRange(value: unknown): value is PendingRange | null {
 }
 
 interface FeedingTimerProps {
+  babyId: string
   lastWeight: number
   onSave: (draft: FeedingDraft) => Promise<unknown>
 }
 
 /** Start/Stop für eine Mahlzeit; nach Stop wird der Eintrag im Dialog ergänzt und erst dann gespeichert. */
-export function FeedingTimer({ lastWeight, onSave }: FeedingTimerProps) {
+export function FeedingTimer({ babyId, lastWeight, onSave }: FeedingTimerProps) {
   const [startedAtIso, setStartedAtIso] = usePersistentState<string | null>(
-    'feedingTimerStart',
+    `feedingTimerStart.${babyId}`,
     null,
     isIsoStringOrNull,
   )
   // Auch der gestoppte, noch nicht gespeicherte Eintrag überlebt ein Schließen der App.
   const [pending, setPending] = usePersistentState<PendingRange | null>(
-    'feedingPendingStop',
+    `feedingPendingStop.${babyId}`,
     null,
     isPendingRange,
   )

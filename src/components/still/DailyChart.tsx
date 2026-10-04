@@ -3,6 +3,7 @@ import {
   BarChart,
   CartesianGrid,
   Legend,
+  ReferenceArea,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -15,7 +16,7 @@ import { buildDailyStats, type DailyStats } from '@/lib/feedingStats'
 import { formatDay } from '@/lib/format'
 import type { Feeding } from '@/types/feeding'
 
-type DailyMetric = 'count' | 'latch' | 'supplement' | 'diapers' | 'woke'
+type DailyMetric = 'count' | 'latch' | 'supplement' | 'diapers' | 'woke' | 'breast'
 
 const METRIC_OPTIONS = [
   'count',
@@ -23,6 +24,7 @@ const METRIC_OPTIONS = [
   'supplement',
   'diapers',
   'woke',
+  'breast',
 ] as const satisfies DailyMetric[]
 
 const METRIC_LABELS: Record<DailyMetric, string> = {
@@ -31,7 +33,11 @@ const METRIC_LABELS: Record<DailyMetric, string> = {
   supplement: 'Zugefüttert (ml)',
   diapers: 'Windeln',
   woke: 'Aufwachen',
+  breast: 'Brust',
 }
+
+/** Zielkorridor für Mahlzeiten pro Tag (grüner Hintergrundbereich). */
+const COUNT_TARGET = { min: 8, max: 12 }
 
 const METRIC_BARS: Record<
   DailyMetric,
@@ -44,12 +50,17 @@ const METRIC_BARS: Record<
     { key: 'emMl', name: 'Ersatzmilch (EM)', color: 'var(--chart-1)', unit: ' ml' },
   ],
   diapers: [
-    { key: 'urine', name: 'Urin', color: 'var(--chart-3)', unit: '' },
-    { key: 'stool', name: 'Stuhl', color: 'var(--chart-5)', unit: '' },
+    { key: 'urine', name: 'Urin', color: 'var(--urine)', unit: '' },
+    { key: 'stool', name: 'Stuhl', color: 'var(--stool)', unit: '' },
   ],
   woke: [
     { key: 'wokeSelf', name: 'Von selbst', color: 'var(--chart-2)', unit: '' },
     { key: 'woken', name: 'Geweckt', color: 'var(--chart-4)', unit: '' },
+  ],
+  breast: [
+    { key: 'breastLeft', name: 'Nur links', color: 'var(--chart-1)', unit: '' },
+    { key: 'breastRight', name: 'Nur rechts', color: 'var(--chart-2)', unit: '' },
+    { key: 'breastBoth', name: 'Beide', color: 'var(--chart-3)', unit: '' },
   ],
 }
 
@@ -93,6 +104,15 @@ export function DailyChart({ feedings }: DailyChartProps) {
               tick={{ fontSize: 11 }}
             />
             <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+            {metric === 'count' && (
+              <ReferenceArea
+                y1={COUNT_TARGET.min}
+                y2={COUNT_TARGET.max}
+                fill="var(--chart-2)"
+                fillOpacity={0.3}
+                ifOverflow="extendDomain"
+              />
+            )}
             <Tooltip
               labelFormatter={(label) => formatDay(new Date(label as number))}
               formatter={(value, name) => [`${value}${unitByName[String(name)] ?? ''}`, name]}

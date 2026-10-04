@@ -21,10 +21,18 @@ import {
   type ChartRange,
 } from '@/lib/chartRange'
 import { computeFeedingKpis } from '@/lib/feedingStats'
+import { cn } from '@/lib/utils'
 import { latestWeight } from '@/types/feeding'
 
-export function StillView() {
-  const { feedings, isLoading, createFeeding, updateFeeding, deleteFeeding } = useFeedings()
+interface StillViewProps {
+  babyId: string
+  /** Desktop/TV: Charts zweispaltig, KPI-Karte breiter. */
+  wide: boolean
+  targetIntervalHours: number
+}
+
+export function StillView({ babyId, wide, targetIntervalHours }: StillViewProps) {
+  const { feedings, isLoading, createFeeding, updateFeeding, deleteFeeding } = useFeedings(babyId)
   const now = useNow()
   const [chartRange, setChartRange] = usePersistentState<ChartRange>(
     'still.chartRange',
@@ -46,7 +54,7 @@ export function StillView() {
       </TabsList>
 
       <TabsContent value="erfassung" className="flex flex-col gap-4">
-        <FeedingTimer lastWeight={lastWeight} onSave={createFeeding} />
+        <FeedingTimer babyId={babyId} lastWeight={lastWeight} onSave={createFeeding} />
 
         <div className="flex items-center justify-between">
           <h2 className="font-heading text-base font-medium">Erfasste Mahlzeiten</h2>
@@ -76,7 +84,7 @@ export function StillView() {
       </TabsContent>
 
       <TabsContent value="auswertung" className="flex flex-col gap-4">
-        <FeedingKpiCard kpis={computeFeedingKpis(feedings, now)} />
+        <FeedingKpiCard kpis={computeFeedingKpis(feedings, now)} wide={wide} />
 
         <div className="flex items-center justify-between gap-2">
           <span className="text-sm text-muted-foreground">Zeitraum für alle Diagramme</span>
@@ -89,11 +97,13 @@ export function StillView() {
           />
         </div>
 
-        <DayRhythmChart feedings={chartFeedings} now={now} />
-        <DailyChart feedings={chartFeedings} />
-        <FeedingTrendChart feedings={chartFeedings} />
-        <HourDistributionChart feedings={chartFeedings} />
-        <WeightChart feedings={chartFeedings} />
+        <div className={cn('grid gap-4 *:min-w-0', wide && 'grid-cols-2')}>
+          <DayRhythmChart feedings={chartFeedings} now={now} />
+          <DailyChart feedings={chartFeedings} />
+          <FeedingTrendChart feedings={chartFeedings} targetIntervalHours={targetIntervalHours} />
+          <HourDistributionChart feedings={chartFeedings} />
+          <WeightChart feedings={chartFeedings} />
+        </div>
       </TabsContent>
     </Tabs>
   )

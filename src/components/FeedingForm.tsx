@@ -22,16 +22,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { parseDateAndTime, selectAllOnFocus, toDateValue, toTimeValue } from '@/lib/dateInput'
 import {
-  DEFAULT_SUPPLEMENT_ML,
-  DEFAULT_SUPPLEMENT_TYPE,
+  BREAST_LABELS,
   FEEDING_DEFAULTS,
-  SUPPLEMENT_TYPE_LABELS,
+  type BreastSecond,
   type Feeding,
   type FeedingDraft,
-  type SupplementType,
 } from '@/types/feeding'
 
 const DEFAULT_MANUAL_MINUTES = 20
@@ -70,6 +67,45 @@ function YesNoField({ label, value, onChange }: YesNoFieldProps) {
   )
 }
 
+interface ChoiceFieldProps<T extends string> {
+  label: string
+  value: T | ''
+  options: readonly T[]
+  onChange: (value: T) => void
+}
+
+/** Button-Gruppe (Radio-Verhalten) für Auswahl aus wenigen Optionen. */
+function ChoiceField<T extends BreastSecond>({ label, value, options, onChange }: ChoiceFieldProps<T>) {
+  return (
+    <div className="grid gap-2">
+      <Label>{label}</Label>
+      <div
+        className="grid gap-1.5"
+        style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
+        role="radiogroup"
+        aria-label={label}
+      >
+        {options.map((option) => (
+          <Button
+            key={option}
+            type="button"
+            size="sm"
+            role="radio"
+            aria-checked={value === option}
+            variant={value === option ? 'default' : 'outline'}
+            onClick={() => onChange(option)}
+          >
+            {BREAST_LABELS[option]}
+          </Button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+const FIRST_BREAST_OPTIONS = ['left', 'right', 'none'] as const satisfies BreastSecond[]
+const SECOND_BREAST_OPTIONS = ['left', 'right', 'none'] as const satisfies BreastSecond[]
+
 interface FeedingFormProps {
   /** `complete` = Ergänzen direkt nach dem Timer-Stop (Eintrag existiert noch nicht). */
   mode: 'create' | 'edit' | 'complete'
@@ -106,8 +142,12 @@ export function FeedingForm({
   const [startTimeStr, setStartTimeStr] = useState('')
   const [durationSec, setDurationSec] = useState(0)
   const [wokeSelf, setWokeSelf] = useState<boolean>(FEEDING_DEFAULTS.woke_self)
-  const [supplementType, setSupplementType] = useState<SupplementType>(DEFAULT_SUPPLEMENT_TYPE)
-  const [supplementMl, setSupplementMl] = useState(DEFAULT_SUPPLEMENT_ML)
+  const [breastFirst, setBreastFirst] = useState<BreastSecond | ''>(FEEDING_DEFAULTS.breast_first)
+  const [breastSecond, setBreastSecond] = useState<BreastSecond | ''>(
+    FEEDING_DEFAULTS.breast_second,
+  )
+  const [mmMl, setMmMl] = useState<number>(FEEDING_DEFAULTS.supplement_mm_ml)
+  const [emMl, setEmMl] = useState<number>(FEEDING_DEFAULTS.supplement_em_ml)
   const [urine, setUrine] = useState<boolean>(FEEDING_DEFAULTS.urine)
   const [stool, setStool] = useState<boolean>(FEEDING_DEFAULTS.stool)
   const [weightG, setWeightG] = useState(0)
@@ -126,9 +166,11 @@ export function FeedingForm({
         Math.max(0, Math.round((new Date(feeding.end).getTime() - start.getTime()) / 1000)),
       )
       setWokeSelf(feeding.woke_self)
-      const isEm = feeding.supplement_em_ml > 0 && feeding.supplement_mm_ml === 0
-      setSupplementType(isEm ? 'em' : 'mm')
-      setSupplementMl(isEm ? feeding.supplement_em_ml : feeding.supplement_mm_ml)
+      // Alte Einträge ohne Brust-Angabe bleiben unausgewählt, statt Standardwerte zu überschreiben.
+      setBreastFirst(feeding.breast_first ?? '')
+      setBreastSecond(feeding.breast_second ?? '')
+      setMmMl(feeding.supplement_mm_ml)
+      setEmMl(feeding.supplement_em_ml)
       setUrine(feeding.urine)
       setStool(feeding.stool)
       setWeightG(feeding.weight_g)
@@ -142,8 +184,10 @@ export function FeedingForm({
       setStartTimeStr(toTimeValue(start))
       setDurationSec(Math.max(0, Math.round((end.getTime() - start.getTime()) / 1000)))
       setWokeSelf(FEEDING_DEFAULTS.woke_self)
-      setSupplementType(DEFAULT_SUPPLEMENT_TYPE)
-      setSupplementMl(DEFAULT_SUPPLEMENT_ML)
+      setBreastFirst(FEEDING_DEFAULTS.breast_first)
+      setBreastSecond(FEEDING_DEFAULTS.breast_second)
+      setMmMl(FEEDING_DEFAULTS.supplement_mm_ml)
+      setEmMl(FEEDING_DEFAULTS.supplement_em_ml)
       setUrine(FEEDING_DEFAULTS.urine)
       setStool(FEEDING_DEFAULTS.stool)
       setWeightG(lastWeight)
@@ -191,8 +235,10 @@ export function FeedingForm({
         end: new Date(start.getTime() + durationSec * 1000).toISOString(),
         latch_minutes: latchMinutes,
         woke_self: wokeSelf,
-        supplement_mm_ml: supplementType === 'mm' ? supplementMl : 0,
-        supplement_em_ml: supplementType === 'em' ? supplementMl : 0,
+        supplement_mm_ml: mmMl,
+        supplement_em_ml: emMl,
+        breast_first: breastFirst,
+        breast_second: breastSecond,
         urine,
         stool,
         weight_g: weightG,
@@ -278,35 +324,44 @@ export function FeedingForm({
 
           <YesNoField label="Von selbst aufgewacht" value={wokeSelf} onChange={setWokeSelf} />
 
+          <div className="grid gap-3 rounded-lg border p-3">
+            <h3 className="text-sm font-medium">Brust</h3>
+            <ChoiceField
+              label="1. Brust"
+              value={breastFirst}
+              options={FIRST_BREAST_OPTIONS}
+              onChange={setBreastFirst}
+            />
+            <ChoiceField
+              label="2. Brust"
+              value={breastSecond}
+              options={SECOND_BREAST_OPTIONS}
+              onChange={setBreastSecond}
+            />
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-2">
-              <Label>Zugefüttert</Label>
-              <Select
-                items={SUPPLEMENT_TYPE_LABELS}
-                value={supplementType}
-                onValueChange={(next) => next && setSupplementType(next as SupplementType)}
-              >
-                <SelectTrigger aria-label="Art der Zufütterung" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {(Object.keys(SUPPLEMENT_TYPE_LABELS) as SupplementType[]).map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {SUPPLEMENT_TYPE_LABELS[type]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="feeding-supplement-ml">Menge (ml)</Label>
+              <Label htmlFor="feeding-supplement-mm">Zugefüttert Muttermilch (ml)</Label>
               <Input
-                id="feeding-supplement-ml"
+                id="feeding-supplement-mm"
                 type="number"
                 min={0}
                 inputMode="numeric"
-                value={supplementMl}
-                onChange={(e) => setSupplementMl(toNonNegative(e.target.value))}
+                value={mmMl}
+                onChange={(e) => setMmMl(toNonNegative(e.target.value))}
+                onFocus={selectAllOnFocus}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="feeding-supplement-em">Zugefüttert Ersatzmilch (ml)</Label>
+              <Input
+                id="feeding-supplement-em"
+                type="number"
+                min={0}
+                inputMode="numeric"
+                value={emMl}
+                onChange={(e) => setEmMl(toNonNegative(e.target.value))}
                 onFocus={selectAllOnFocus}
               />
             </div>

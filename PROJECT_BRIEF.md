@@ -116,14 +116,26 @@ Projektstruktur (Repo-Root = Vite-App-Root, analog `otherApp`):
 ### Ansicht „Stilltracker“ (umschaltbar im Einstellungsdialog, pro Gerät)
 
 - Spalten analog zum Still-Protokoll der Hebamme: Start, Ende der Mahlzeit,
-  angelegt Minuten (mit Start/Ende verknüpft), von selbst aufgewacht,
-  zugefüttert MM/EM (ml), Urin, Stuhl, Gewicht (g), Besonderheiten.
+  angelegt Minuten (mit Start/Ende verknüpft), von selbst aufgewacht, Brust
+  (1. Brust links/rechts, 2. Brust links/rechts/keine), zugefüttert MM und EM
+  (ml, getrennt, Standard 0), Urin, Stuhl, Gewicht (g), Besonderheiten.
 - Start/Stop-Timer; nach Stop öffnet ein Dialog mit Standardwerten
-  (aufgewacht ja, Zufütterung per Dropdown Muttermilch/Ersatzmilch + Menge
-  100 ml, Urin/Stuhl nein, Gewicht des letzten Eintrags bzw. 3.500 g beim
-  allerersten). Gespeichert wird erst beim Bestätigen, Verwerfen nur nach Warnung.
-- Auswertung: KPI-Karte (letzte 24 Std.), Tagesrhythmus, Pro Tag, Verlauf je
-  Mahlzeit, Nach Tageszeit, Gewichtsverlauf — mit Dropdowns zur Konfiguration.
+  (aufgewacht ja, Brust links/keine, Zufütterung 0 ml, Urin/Stuhl nein, Gewicht
+  des letzten Eintrags bzw. 3.500 g beim allerersten). Gespeichert wird erst
+  beim Bestätigen, Verwerfen nur nach Warnung.
+- Abstand zwischen Mahlzeiten = Ende der vorherigen bis Start der nächsten.
+- Auswertung: KPI-Karte (Live-Abstand + Summen für gestern 00:00–23:59),
+  Tagesrhythmus, Pro Tag, Verlauf je Mahlzeit (Y-Max, Soll-Linie), Nach
+  Tageszeit, Gewichtsverlauf — mit Dropdowns zur Konfiguration.
+- Layout „Desktop / TV“ (Einstellungen, pro Gerät): volle Breite, Charts zweispaltig.
+
+### Global (beide Ansichten)
+
+- **Mehrere Babys:** alle Einträge/Auswertungen gelten für das aktive Baby (pro Gerät
+  gewählt, Verwaltung in den Einstellungen).
+- **Passcode:** vierstellig, Standard 1111, änderbar in den Einstellungen (zweimalige
+  Eingabe). Reine UI-Sperre (Hash in `settings.passcode_hash`); Gerät bleibt
+  entsperrt, bis „Jetzt sperren“.
 
 ## 4. Die 5-1-1-Regel — Logik
 
@@ -191,11 +203,19 @@ weiter).
 
 3. **`feedings`** — eine Mahlzeit im Stilltracker, Regeln wie `contractions`
    (alle `""`):
+   - `baby` (Relation → `babies`, required, cascadeDelete)
    - `start`, `end` (Date, required) — `end` = Ende der Mahlzeit
    - `latch_minutes` (Number) — angelegt Minuten
    - `woke_self`, `urine`, `stool`, `is_manual` (Bool)
+   - `breast_first` (Select left/right), `breast_second` (Select left/right/none);
+     leer bei Einträgen vor der Brust-Erfassung
    - `supplement_mm_ml`, `supplement_em_ml`, `weight_g` (Number, 0 = keine Angabe)
    - `note` (Text, max. 500) — Besonderheiten
+
+4. **`babies`** — `name` (Text, required, max 60); Regeln wie `contractions`.
+   `contractions.baby` verweist ebenfalls hierher (required, cascadeDelete).
+
+`settings` enthält zusätzlich `passcode_hash` (SHA-256 von `wehentimer:<Code>`).
 
 ## 6. Sicherheit & Absicherung (trotz "kein Login")
 

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Clock, Pencil, Trash2 } from 'lucide-react'
+import { Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -14,8 +14,8 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { FeedingForm } from '@/components/FeedingForm'
-import { formatDay, formatGrams, formatHoursMinutes, formatMl, formatTime } from '@/lib/format'
-import type { Feeding, FeedingDraft } from '@/types/feeding'
+import { formatDay, formatHoursMinutes, formatMl, formatTime } from '@/lib/format'
+import { BREAST_LABELS, lastBreast, type Feeding, type FeedingDraft } from '@/types/feeding'
 
 interface FeedingListItemProps {
   feeding: Feeding
@@ -34,6 +34,7 @@ export function FeedingListItem({
 }: FeedingListItemProps) {
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const breast = lastBreast(feeding)
 
   async function handleDelete() {
     setIsDeleting(true)
@@ -63,20 +64,19 @@ export function FeedingListItem({
           )}
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
-          <Badge variant="outline" className="gap-1">
-            {feeding.is_manual ? <Pencil className="size-3" /> : <Clock className="size-3" />}
-            {feeding.is_manual ? 'manuell' : 'Timer'}
-          </Badge>
-          <Badge variant="outline">{feeding.woke_self ? 'selbst aufgewacht' : 'geweckt'}</Badge>
+          {breast && <Badge variant="outline">Letzte Brust: {BREAST_LABELS[breast]}</Badge>}
           {feeding.supplement_mm_ml > 0 && (
             <Badge variant="outline">MM {formatMl(feeding.supplement_mm_ml)}</Badge>
           )}
           {feeding.supplement_em_ml > 0 && (
             <Badge variant="outline">EM {formatMl(feeding.supplement_em_ml)}</Badge>
           )}
-          {feeding.urine && <Badge variant="outline">Urin</Badge>}
-          {feeding.stool && <Badge variant="outline">Stuhl</Badge>}
-          {feeding.weight_g > 0 && <Badge variant="outline">{formatGrams(feeding.weight_g)}</Badge>}
+          {feeding.urine && (
+            <Badge style={{ backgroundColor: 'var(--urine)', color: '#33362c' }}>Urin</Badge>
+          )}
+          {feeding.stool && (
+            <Badge style={{ backgroundColor: 'var(--stool)', color: '#fff' }}>Stuhl</Badge>
+          )}
         </div>
         {feeding.note && <p className="truncate text-sm text-muted-foreground">{feeding.note}</p>}
       </div>

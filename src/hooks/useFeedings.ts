@@ -4,10 +4,11 @@ import type { Feeding, FeedingDraft } from '@/types/feeding'
 
 const LABELS = { singular: 'Mahlzeit', plural: 'Mahlzeiten' }
 
-/** Lädt alle Mahlzeiten des Stilltrackers, geräteübergreifend per Realtime synchron. */
-export function useFeedings() {
+/** Lädt alle Mahlzeiten eines Babys, geräteübergreifend per Realtime synchron. */
+export function useFeedings(babyId: string) {
   const { items, isLoading, create, update, remove } = useRealtimeCollection<Feeding, FeedingDraft>(
     FEEDINGS_COLLECTION,
+    babyId,
     LABELS,
   )
 

@@ -3,15 +3,16 @@ import { OptionSelect } from '@/components/charts/OptionSelect'
 import { oneOf, usePersistentState } from '@/hooks/usePersistentState'
 import { buildRhythmDays } from '@/lib/feedingStats'
 import { formatDay, formatTime } from '@/lib/format'
-import type { Feeding } from '@/types/feeding'
+import { breastUsage, type Feeding } from '@/types/feeding'
 
-type ColorMode = 'woke' | 'supplement' | 'plain'
+type ColorMode = 'woke' | 'supplement' | 'breast' | 'plain'
 
-const COLOR_OPTIONS = ['woke', 'supplement', 'plain'] as const satisfies ColorMode[]
+const COLOR_OPTIONS = ['woke', 'supplement', 'breast', 'plain'] as const satisfies ColorMode[]
 
 const COLOR_LABELS: Record<ColorMode, string> = {
   woke: 'Farbe: Aufwachen',
   supplement: 'Farbe: Zufütterung',
+  breast: 'Farbe: Brust',
   plain: 'Farbe: einheitlich',
 }
 
@@ -26,11 +27,24 @@ const LEGENDS: Record<ColorMode, { label: string; color: string }[]> = {
     { label: 'EM', color: 'var(--chart-1)' },
     { label: 'MM + EM', color: 'var(--chart-3)' },
   ],
+  breast: [
+    { label: 'nur links', color: 'var(--chart-1)' },
+    { label: 'nur rechts', color: 'var(--chart-2)' },
+    { label: 'beide', color: 'var(--chart-3)' },
+    { label: 'keine Angabe', color: 'var(--chart-5)' },
+  ],
   plain: [],
 }
 
 function barColor(feeding: Feeding, mode: ColorMode): string {
   if (mode === 'woke') return feeding.woke_self ? 'var(--chart-2)' : 'var(--chart-4)'
+  if (mode === 'breast') {
+    const usage = breastUsage(feeding)
+    if (usage === 'left') return 'var(--chart-1)'
+    if (usage === 'right') return 'var(--chart-2)'
+    if (usage === 'both') return 'var(--chart-3)'
+    return 'var(--chart-5)'
+  }
   if (mode === 'supplement') {
     const mm = feeding.supplement_mm_ml > 0
     const em = feeding.supplement_em_ml > 0
