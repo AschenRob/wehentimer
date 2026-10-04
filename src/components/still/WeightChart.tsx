@@ -55,7 +55,7 @@ export function WeightChart({ feedings }: WeightChartProps) {
         </p>
       ) : (
         <ResponsiveContainer width="100%" height={220}>
-          <LineChart data={data} margin={{ top: 8, right: 16, left: 4, bottom: 0 }}>
+          <LineChart data={data} margin={{ top: 20, right: 16, left: 4, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
             <XAxis
               dataKey="timestamp"

@@ -2,8 +2,9 @@ import { useMemo, useRef } from 'react'
 import { Play, Square } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useElapsedSeconds } from '@/hooks/useElapsedSeconds'
+import { useNow } from '@/hooks/useNow'
 import { isIsoStringOrNull, usePersistentState } from '@/hooks/usePersistentState'
-import { formatDurationClock } from '@/lib/format'
+import { formatClockHM, formatDurationClock } from '@/lib/format'
 import { FeedingForm } from '@/components/FeedingForm'
 import type { FeedingDraft } from '@/types/feeding'
 
@@ -22,11 +23,14 @@ function isPendingRange(value: unknown): value is PendingRange | null {
 interface FeedingTimerProps {
   babyId: string
   lastWeight: number
+  /** Ende der letzten Mahlzeit (ISO) für "Zeit seit der letzten Mahlzeit". */
+  lastEnd: string | null
   onSave: (draft: FeedingDraft) => Promise<unknown>
 }
 
 /** Start/Stop für eine Mahlzeit; nach Stop wird der Eintrag im Dialog ergänzt und erst dann gespeichert. */
-export function FeedingTimer({ babyId, lastWeight, onSave }: FeedingTimerProps) {
+export function FeedingTimer({ babyId, lastWeight, lastEnd, onSave }: FeedingTimerProps) {
+  const now = useNow(10_000)
   const [startedAtIso, setStartedAtIso] = usePersistentState<string | null>(
     `feedingTimerStart.${babyId}`,
     null,
@@ -85,6 +89,14 @@ export function FeedingTimer({ babyId, lastWeight, onSave }: FeedingTimerProps) 
           </>
         )}
       </button>
+      {lastEnd && (
+        <p className="text-sm">
+          Zeit seit der letzten Mahlzeit:{' '}
+          <span className="font-semibold tabular-nums">
+            {formatClockHM((now.getTime() - new Date(lastEnd).getTime()) / 60_000)}
+          </span>
+        </p>
+      )}
       <p className="text-center text-sm text-muted-foreground">
         {isRunning
           ? 'Mahlzeit läuft – Stop drücken, sobald sie vorbei ist.'

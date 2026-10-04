@@ -90,6 +90,22 @@ Erweiterung 2026-10-02 (noch nicht deployt, neue Migrationen `1790000040`/`50`/`
 - **Layout „Desktop / TV“** (Einstellungen, pro Gerät): volle Breite, Charts der
   Still-Auswertung zweispaltig, KPI-Karte gestreckt.
 
+Erweiterung 2026-10-04 (noch nicht deployt, neue Migrationen `1790000080`/`90`):
+- **Babys global mit Profil:** `babies` hat `due_date` (ET), `birth_date`, `gender`. Migration
+  `1790000080` macht das älteste Baby (nach `created`, nicht nach Name) zu „Stella“ (geb.
+  28.09.2026, ET 27.09.2026, w) und löscht alle anderen Babys (dazu existieren keine Einträge).
+  Einstellungen: Name, ET, Geschlecht (Geburtsdatum hat bewusst keine UI). Kopfzeile: Burger-Menü
+  (Moduswahl, `ModeMenu`) links; unter dem Untertitel steht
+  „Nächster Sprung in X Wochen, Y Tage“. Die Sprung-Zeitleiste zeigt Kalenderdaten ab ET. „Krümelchen“-Texte → Babyname (`ourLittle()` in `types/baby.ts`).
+- **Stillen:** „Zeit seit der letzten Mahlzeit H:MM“ unter dem Button, Brust-Sticker
+  („Brust: Beide, zuletzt Links“), Tagesrhythmus mit Farbmodus Windeln und hellblauer Nachtzeit
+  23–5 Uhr, Gewichtsverlauf: obere Y-Zahl nicht mehr abgeschnitten (mehr Top-Margin).
+- **Sprünge und Schlaf** (`views/SleepView.tsx`): Prognose (`lib/jumps.ts`, `components/jumps/*`),
+  Erfassung (`SleepTimer`/`SleepForm`/`SleepList`, Collection `sleeps`, Migration `1790000090`),
+  Statistik (`lib/sleepStats.ts`, `components/sleep/*`). Sprung-Zeiträume (stormStart/stormEnd) sind
+  geschätzte Richtwerte aus dem Modell, nicht aus einer abrufbaren Quelle verifiziert — bei Bedarf in
+  `lib/jumps.ts` nachjustieren. Migrationen lokal gegen Scratch-PocketBase verifiziert.
+
 ## 2. Lokal starten
 
 Zwei Terminals, **bewusst andere Ports als otherApp** (dort 5173/8090):
@@ -227,6 +243,6 @@ unbehandelten Fehler fehlschlagen (bereits gefixt, s.u.).
   über `http://<NAS-LAN-IP>:8092/_/` erreichbar (umgeht NPM/Hairpin).
 - Für Updates nach der Ersteinrichtung: `prepare-deploy.ps1` ausführen,
   `deploy/`-Inhalt aufs NAS hochladen (siehe INITIAL_DEPLOYMENT.md
-  Abschnitt 10). Die neuen Migrationen (`1790000020` bis `1790000060`) laufen
+  Abschnitt 10). Die neuen Migrationen (`1790000020` bis `1790000090`) laufen
   beim Neustart des PocketBase-Containers automatisch (vorher Backup, siehe
   DEPLOYMENT.md; `1790000050` ordnet alle Altdaten „Baby 1“ zu).

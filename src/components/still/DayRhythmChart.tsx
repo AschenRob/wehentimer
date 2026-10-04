@@ -5,16 +5,33 @@ import { buildRhythmDays } from '@/lib/feedingStats'
 import { formatDay, formatTime } from '@/lib/format'
 import { breastUsage, type Feeding } from '@/types/feeding'
 
-type ColorMode = 'woke' | 'supplement' | 'breast' | 'plain'
+type ColorMode = 'woke' | 'supplement' | 'breast' | 'diaper' | 'plain'
 
-const COLOR_OPTIONS = ['woke', 'supplement', 'breast', 'plain'] as const satisfies ColorMode[]
+const COLOR_OPTIONS = [
+  'woke',
+  'supplement',
+  'breast',
+  'diaper',
+  'plain',
+] as const satisfies ColorMode[]
 
 const COLOR_LABELS: Record<ColorMode, string> = {
   woke: 'Farbe: Aufwachen',
   supplement: 'Farbe: Zufütterung',
   breast: 'Farbe: Brust',
+  diaper: 'Farbe: Windeln',
   plain: 'Farbe: einheitlich',
 }
+
+const URINE_COLOR = 'var(--urine)'
+const STOOL_COLOR = 'var(--stool)'
+const BOTH_DIAPER_COLOR = `linear-gradient(90deg, ${URINE_COLOR} 50%, ${STOOL_COLOR} 50%)`
+
+// Nachtzeit 23–5 Uhr (je Zeile als zwei Bänder: 0–5 und 23–24).
+const NIGHT_BANDS = [
+  { from: 0, to: 5 },
+  { from: 23, to: 24 },
+]
 
 const LEGENDS: Record<ColorMode, { label: string; color: string }[]> = {
   woke: [
@@ -33,10 +50,22 @@ const LEGENDS: Record<ColorMode, { label: string; color: string }[]> = {
     { label: 'beide', color: 'var(--chart-3)' },
     { label: 'keine Angabe', color: 'var(--chart-5)' },
   ],
+  diaper: [
+    { label: 'Urin', color: URINE_COLOR },
+    { label: 'Stuhl', color: STOOL_COLOR },
+    { label: 'Urin + Stuhl', color: BOTH_DIAPER_COLOR },
+    { label: 'keine Windel', color: 'var(--chart-5)' },
+  ],
   plain: [],
 }
 
 function barColor(feeding: Feeding, mode: ColorMode): string {
+  if (mode === 'diaper') {
+    if (feeding.urine && feeding.stool) return BOTH_DIAPER_COLOR
+    if (feeding.urine) return URINE_COLOR
+    if (feeding.stool) return STOOL_COLOR
+    return 'var(--chart-5)'
+  }
   if (mode === 'woke') return feeding.woke_self ? 'var(--chart-2)' : 'var(--chart-4)'
   if (mode === 'breast') {
     const usage = breastUsage(feeding)
@@ -119,6 +148,16 @@ export function DayRhythmChart({ feedings, now }: DayRhythmChartProps) {
                 {formatDay(new Date(day.dayStart))}
               </span>
               <div className="relative h-6 overflow-hidden rounded-sm bg-muted">
+                {NIGHT_BANDS.map((band) => (
+                  <div
+                    key={band.from}
+                    className="absolute top-0 h-full bg-sky-200/70 dark:bg-sky-900/50"
+                    style={{
+                      left: `${(band.from / 24) * 100}%`,
+                      width: `${((band.to - band.from) / 24) * 100}%`,
+                    }}
+                  />
+                ))}
                 {HOUR_TICKS.slice(1, -1).map((h) => (
                   <div
                     key={h}
@@ -134,7 +173,7 @@ export function DayRhythmChart({ feedings, now }: DayRhythmChartProps) {
                     style={{
                       left: `${(item.startMin / DAY_MIN) * 100}%`,
                       width: `${Math.max(((item.endMin - item.startMin) / DAY_MIN) * 100, 0.8)}%`,
-                      backgroundColor: barColor(item.feeding, colorMode),
+                      background: barColor(item.feeding, colorMode),
                     }}
                   />
                 ))}
@@ -147,19 +186,21 @@ export function DayRhythmChart({ feedings, now }: DayRhythmChartProps) {
               </div>
             </div>
           ))}
-          {LEGENDS[colorMode].length > 0 && (
-            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-              {LEGENDS[colorMode].map((entry) => (
-                <span key={entry.label} className="flex items-center gap-1">
-                  <span
-                    className="inline-block size-3 rounded-sm"
-                    style={{ backgroundColor: entry.color }}
-                  />
-                  {entry.label}
-                </span>
-              ))}
-            </div>
-          )}
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <span className="inline-block size-3 rounded-sm bg-sky-200/70 dark:bg-sky-900/50" />
+              Nacht (23–5 Uhr)
+            </span>
+            {LEGENDS[colorMode].map((entry) => (
+              <span key={entry.label} className="flex items-center gap-1">
+                <span
+                  className="inline-block size-3 rounded-sm"
+                  style={{ background: entry.color }}
+                />
+                {entry.label}
+              </span>
+            ))}
+          </div>
         </div>
       )}
     </ChartCard>

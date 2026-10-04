@@ -113,7 +113,7 @@ Projektstruktur (Repo-Root = Vite-App-Root, analog `otherApp`):
   laufendes Muster als Linie unter der Zeitleiste. Chart-Einstellungen gelten
   pro Gerät (localStorage).
 
-### Ansicht „Stilltracker“ (umschaltbar im Einstellungsdialog, pro Gerät)
+### Ansicht „Stilltracker“ (Moduswahl über das Burger-Menü oben links, pro Gerät)
 
 - Spalten analog zum Still-Protokoll der Hebamme: Start, Ende der Mahlzeit,
   angelegt Minuten (mit Start/Ende verknüpft), von selbst aufgewacht, Brust
@@ -128,11 +128,32 @@ Projektstruktur (Repo-Root = Vite-App-Root, analog `otherApp`):
   Tagesrhythmus, Pro Tag, Verlauf je Mahlzeit (Y-Max, Soll-Linie), Nach
   Tageszeit, Gewichtsverlauf — mit Dropdowns zur Konfiguration.
 - Layout „Desktop / TV“ (Einstellungen, pro Gerät): volle Breite, Charts zweispaltig.
+- Unter dem Start/Stop-Button: „Zeit seit der letzten Mahlzeit: H:MM“ (ab Ende der letzten Mahlzeit).
+- Brust-Sticker in der Liste: „Brust: Links“, „Brust: Rechts“, „Brust: Beide, zuletzt Links/Rechts“.
+- Tagesrhythmus: Farbmodus „Windeln“ (Urin ocker, Stuhl dunkelbraun, beides geteilt); die
+  Nachtzeit 23–5 Uhr ist hellblau hinterlegt.
 
-### Global (beide Ansichten)
+### Ansicht „Sprünge und Schlaf“ (Burger-Menü), drei Tabs
 
-- **Mehrere Babys:** alle Einträge/Auswertungen gelten für das aktive Baby (pro Gerät
-  gewählt, Verwaltung in den Einstellungen).
+- **Prognose:** Zehn Entwicklungsprünge (Modell „Oje, ich wachse!“, Wochen 5, 8, 12, 19, 26, 37,
+  46, 55, 64, 75 **ab errechnetem Termin**, `lib/jumps.ts`). Zeitleiste mit ET in Zeilen à zwei Kalendermonaten (ohne ET à 14 Wochen) mit
+  Phasenbalken (stürmische Phase), Sonnenschein-Symbol danach und „Heute“-Marker; darunter
+  antippbare Karten (Datumsbereich, Status, Zusammenfassung, Lerninhalte, Anzeichen, Tipps,
+  Schlaf-Auswirkung). Zeiträume sind Richtwerte. Ohne ET zeigt die Ansicht nur Wochenangaben.
+- **Erfassung:** Start/Stop-Timer „Augen zu“ → „Aufgewacht“; während des Schlafs lassen sich
+  „Völlig entspannt“, „Tiefschlaf (Armtest)“ und „REM-Beginn“ per Tipp festhalten. Danach Dialog
+  (nur Start/Ende Pflicht; optional: Minuten bis entspannt/Tiefschlaf/REM, nach REM aufgewacht oder
+  nächster Zyklus, Einschlafart, Notiz). Manuelles Nachtragen, Liste mit Bearbeiten/Löschen.
+- **Statistik:** KPI-Karte (wach seit, gestern: Schlaf gesamt Tag/Nacht, Tagesschäfchen, längster
+  Schlaf, Ø Zyklus-Zeiten), Tagesrhythmus Schlaf, Schlaf pro Tag (Tag/Nacht gestapelt, Sprünge
+  hinterlegt), Verlauf Tiefschlaf/REM bzw. Einschlafdauer, Anteil aufgewacht vs. nächster Zyklus.
+  Nachtschlaf = Einschlafen zwischen 19 und 6 Uhr.
+
+### Global (alle Ansichten)
+
+- **Mehrere Babys (global):** Babys inkl. Name, errechnetem Termin (ET) und Geschlecht liegen in der
+  Datenbank und gelten auf allen Geräten; nur das aktuell angezeigte Baby ist pro Gerät gewählt
+  (Verwaltung in den Einstellungen). Unter dem Untertitel der Kopfzeile steht „Nächster Sprung in …“. Alle Texte nutzen den Babynamen („unserer kleinen Stella“).
 - **Passcode:** vierstellig, Standard 1111, änderbar in den Einstellungen (zweimalige
   Eingabe). Reine UI-Sperre (Hash in `settings.passcode_hash`); Gerät bleibt
   entsperrt, bis „Jetzt sperren“.
@@ -212,8 +233,14 @@ weiter).
    - `supplement_mm_ml`, `supplement_em_ml`, `weight_g` (Number, 0 = keine Angabe)
    - `note` (Text, max. 500) — Besonderheiten
 
-4. **`babies`** — `name` (Text, required, max 60); Regeln wie `contractions`.
+4. **`babies`** — `name` (Text, required, max 60), `due_date` (Date, ET), `birth_date` (Date, nur
+   per Migration gesetzt), `gender` (Select female/male); Regeln wie `contractions`.
    `contractions.baby` verweist ebenfalls hierher (required, cascadeDelete).
+
+5. **`sleeps`** — `baby` (Relation, required, cascadeDelete), `start` (Augen zu), `end`
+   (Date, required), `relax_minutes`, `deep_minutes`, `rem_minutes` (Number, 0 = keine Angabe),
+   `after_rem` (Select woke/next_cycle), `method` (Select nursing/carried/bed/stroller/car/other),
+   `note` (Text, max. 500), `is_manual` (Bool); Regeln wie `contractions`.
 
 `settings` enthält zusätzlich `passcode_hash` (SHA-256 von `wehentimer:<Code>`).
 

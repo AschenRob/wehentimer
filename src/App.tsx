@@ -2,15 +2,21 @@ import type { ReactNode } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Toaster } from '@/components/ui/sonner'
 import { SettingsDialog } from '@/components/SettingsDialog'
+import { ModeMenu } from '@/components/ModeMenu'
 import { PasscodeGate } from '@/components/settings/PasscodeGate'
 import { useBabies } from '@/hooks/useBabies'
+import { useNow } from '@/hooks/useNow'
 import { useSettings } from '@/hooks/useSettings'
 import { oneOf, usePersistentState } from '@/hooks/usePersistentState'
 import { APP_LAYOUT_OPTIONS, APP_VIEW_META, APP_VIEW_OPTIONS, type AppLayout, type AppView } from '@/lib/appView'
+import { formatWeeksDays } from '@/lib/format'
+import { jumpOutlook } from '@/lib/jumps'
 import { cn } from '@/lib/utils'
 import { hashPasscode } from '@/lib/passcode'
+import { parseBabyDate, type BabyInput } from '@/types/baby'
 import { WehenView } from '@/views/WehenView'
 import { StillView } from '@/views/StillView'
+import { SleepView } from '@/views/SleepView'
 
 const DEFAULT_TARGET_INTERVAL_HOURS = 3
 
@@ -28,7 +34,8 @@ function FullScreenMessage({ children }: { children: ReactNode }) {
 
 function App() {
   const { settings, isLoading: isSettingsLoading, updateSettings } = useSettings()
-  const { babies, isLoading: isBabiesLoading, createBaby, renameBaby, deleteBaby } = useBabies()
+  const { babies, isLoading: isBabiesLoading, createBaby, updateBaby, deleteBaby } = useBabies()
+  const now = useNow(60_000)
   const [view, setView] = usePersistentState<AppView>('view', 'wehen', oneOf(APP_VIEW_OPTIONS))
   const [layout, setLayout] = usePersistentState<AppLayout>(
     'layout',
@@ -79,10 +86,18 @@ function App() {
     }
   }
 
-  async function handleCreateBaby(name: string) {
-    const baby = await createBaby(name)
+  async function handleCreateBaby(input: BabyInput) {
+    const baby = await createBaby(input)
     setBabyId(baby.id)
   }
+
+  const due = parseBabyDate(activeBaby.due_date)
+  const outlook = due ? jumpOutlook(due, now) : null
+  const jumpText = outlook
+    ? outlook.state === 'running'
+      ? `Sprung ${outlook.window.jump.number} läuft, noch ${formatWeeksDays(outlook.days)}`
+      : `Nächster Sprung in ${formatWeeksDays(outlook.days)}`
+    : null
 
   return (
     <div
@@ -91,37 +106,40 @@ function App() {
         isDesktop ? 'max-w-none px-8' : 'max-w-2xl px-4',
       )}
     >
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="font-heading text-xl font-semibold">{meta.title}</h1>
-          <p className="text-xs text-muted-foreground">
-            {babies.length > 1 ? `${activeBaby.name} · ` : ''}
-            {meta.subtitle}
-          </p>
+      <header className="flex items-start justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-1">
+          <ModeMenu view={view} onViewChange={setView} />
+          <div className="min-w-0">
+            <h1 className="font-heading text-xl font-semibold">{meta.title}</h1>
+            <p className="text-xs text-muted-foreground">{meta.subtitle(activeBaby)}</p>
+            {jumpText && <p className="text-xs text-muted-foreground">{jumpText}</p>}
+          </div>
         </div>
-        <SettingsDialog
-          view={view}
-          onViewChange={setView}
-          layout={layout}
-          onLayoutChange={setLayout}
-          settings={settings}
-          onSave={updateSettings}
-          targetIntervalHours={targetIntervalHours}
-          onTargetIntervalHoursChange={setTargetIntervalHours}
-          babies={babies}
-          activeBabyId={activeBaby.id}
-          onSelectBaby={setBabyId}
-          onCreateBaby={handleCreateBaby}
-          onRenameBaby={renameBaby}
-          onDeleteBaby={deleteBaby}
-          onChangePasscode={handleChangePasscode}
-          onLock={() => setUnlockedHash('')}
-        />
+        <div className="flex shrink-0 items-center">
+          <SettingsDialog
+            view={view}
+            layout={layout}
+            onLayoutChange={setLayout}
+            settings={settings}
+            onSave={updateSettings}
+            targetIntervalHours={targetIntervalHours}
+            onTargetIntervalHoursChange={setTargetIntervalHours}
+            babies={babies}
+            activeBabyId={activeBaby.id}
+            onSelectBaby={setBabyId}
+            onCreateBaby={handleCreateBaby}
+            onUpdateBaby={updateBaby}
+            onDeleteBaby={deleteBaby}
+            onChangePasscode={handleChangePasscode}
+            onLock={() => setUnlockedHash('')}
+          />
+        </div>
       </header>
 
-      {view === 'wehen' ? (
+      {view === 'wehen' && (
         <WehenView key={activeBaby.id} babyId={activeBaby.id} settings={settings} />
-      ) : (
+      )}
+      {view === 'still' && (
         <StillView
           key={activeBaby.id}
           babyId={activeBaby.id}
@@ -129,6 +147,7 @@ function App() {
           targetIntervalHours={targetIntervalHours}
         />
       )}
+      {view === 'sleep' && <SleepView key={activeBaby.id} baby={activeBaby} wide={isDesktop} />}
 
       <Toaster position="top-center" />
     </div>

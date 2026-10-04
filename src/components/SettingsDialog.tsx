@@ -18,12 +18,10 @@ import { PasscodeSettings } from '@/components/settings/PasscodeSettings'
 import {
   APP_LAYOUT_LABELS,
   APP_LAYOUT_OPTIONS,
-  APP_VIEW_META,
-  APP_VIEW_OPTIONS,
   type AppLayout,
   type AppView,
 } from '@/lib/appView'
-import type { Baby } from '@/types/baby'
+import type { Baby, BabyInput } from '@/types/baby'
 import { DEFAULT_THRESHOLDS, type SettingsPatch, type WehenSettings } from '@/types/settings'
 
 // Markiert den kompletten Feldinhalt beim Fokussieren, damit Tippen die
@@ -34,7 +32,6 @@ function selectAllOnFocus(e: FocusEvent<HTMLInputElement>) {
 
 interface SettingsDialogProps {
   view: AppView
-  onViewChange: (view: AppView) => void
   layout: AppLayout
   onLayoutChange: (layout: AppLayout) => void
   settings: WehenSettings
@@ -45,8 +42,8 @@ interface SettingsDialogProps {
   babies: Baby[]
   activeBabyId: string
   onSelectBaby: (id: string) => void
-  onCreateBaby: (name: string) => Promise<unknown>
-  onRenameBaby: (id: string, name: string) => Promise<unknown>
+  onCreateBaby: (input: BabyInput) => Promise<unknown>
+  onUpdateBaby: (id: string, input: BabyInput) => Promise<unknown>
   onDeleteBaby: (id: string) => Promise<unknown>
   onChangePasscode: (code: string) => Promise<unknown>
   onLock: () => void
@@ -54,7 +51,6 @@ interface SettingsDialogProps {
 
 export function SettingsDialog({
   view,
-  onViewChange,
   layout,
   onLayoutChange,
   settings,
@@ -65,7 +61,7 @@ export function SettingsDialog({
   activeBabyId,
   onSelectBaby,
   onCreateBaby,
-  onRenameBaby,
+  onUpdateBaby,
   onDeleteBaby,
   onChangePasscode,
   onLock,
@@ -123,26 +119,8 @@ export function SettingsDialog({
       <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Einstellungen</DialogTitle>
-          <DialogDescription>Ansicht und Layout gelten nur für dieses Gerät.</DialogDescription>
+          <DialogDescription>Das Layout gilt nur für dieses Gerät.</DialogDescription>
         </DialogHeader>
-        <div className="grid gap-2">
-          <Label>Ansicht</Label>
-          <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Ansicht">
-            {APP_VIEW_OPTIONS.map((option) => (
-              <Button
-                key={option}
-                type="button"
-                role="radio"
-                aria-checked={view === option}
-                variant={view === option ? 'default' : 'outline'}
-                onClick={() => onViewChange(option)}
-              >
-                {APP_VIEW_META[option].title}
-              </Button>
-            ))}
-          </div>
-        </div>
-
         <div className="grid gap-2">
           <Label>Layout</Label>
           <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Layout">
@@ -167,7 +145,7 @@ export function SettingsDialog({
           activeBabyId={activeBabyId}
           onSelect={onSelectBaby}
           onCreate={onCreateBaby}
-          onRename={onRenameBaby}
+          onUpdate={onUpdateBaby}
           onDelete={onDeleteBaby}
         />
 

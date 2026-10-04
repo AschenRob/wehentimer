@@ -62,6 +62,31 @@ export function formatHoursMinutes(totalMinutes: number): string {
   return minutes > 0 ? `${hours} Std ${minutes} Min` : `${hours} Std`
 }
 
+/** Minuten -> "H:MM" (z.B. 125 -> "2:05"). */
+export function formatClockHM(totalMinutes: number): string {
+  const rounded = Math.max(0, Math.floor(totalMinutes))
+  return `${Math.floor(rounded / 60)}:${(rounded % 60).toString().padStart(2, '0')}`
+}
+
+const fullDateFormatter = new Intl.DateTimeFormat('de-DE', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+})
+
+/** z.B. "28.09.2026" */
+export function formatDate(date: Date | string): string {
+  return fullDateFormatter.format(new Date(date))
+}
+
+/** Tage -> "3 Wochen, 2 Tage" (mit Singular). */
+export function formatWeeksDays(totalDays: number): string {
+  const days = Math.max(0, Math.round(totalDays))
+  const weeks = Math.floor(days / 7)
+  const rest = days % 7
+  return `${weeks} ${weeks === 1 ? 'Woche' : 'Wochen'}, ${rest} ${rest === 1 ? 'Tag' : 'Tage'}`
+}
+
 export function formatTime(date: Date | string): string {
   return timeFormatter.format(new Date(date))
 }

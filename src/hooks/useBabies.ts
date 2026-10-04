@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { BABIES_COLLECTION, pb } from '@/lib/pocketbase'
-import type { Baby } from '@/types/baby'
+import type { Baby, BabyInput } from '@/types/baby'
+
+function toPayload(input: BabyInput) {
+  return {
+    name: input.name,
+    due_date: input.due_date ? `${input.due_date} 00:00:00.000Z` : '',
+    gender: input.gender,
+  }
+}
 
 function sortByCreated(babies: Baby[]): Baby[] {
   return [...babies].sort((a, b) => a.created.localeCompare(b.created))
@@ -49,9 +57,11 @@ export function useBabies() {
     }
   }, [])
 
-  const createBaby = useCallback(async (name: string) => {
+  const createBaby = useCallback(async (input: BabyInput) => {
     try {
-      const record = await pb.collection(BABIES_COLLECTION).create<Baby>({ name }, { requestKey: null })
+      const record = await pb
+        .collection(BABIES_COLLECTION)
+        .create<Baby>(toPayload(input), { requestKey: null })
       setBabies((prev) => sortByCreated([...prev.filter((b) => b.id !== record.id), record]))
       return record
     } catch (err) {
@@ -61,13 +71,15 @@ export function useBabies() {
     }
   }, [])
 
-  const renameBaby = useCallback(async (id: string, name: string) => {
+  const updateBaby = useCallback(async (id: string, input: BabyInput) => {
     try {
-      const record = await pb.collection(BABIES_COLLECTION).update<Baby>(id, { name }, { requestKey: null })
+      const record = await pb
+        .collection(BABIES_COLLECTION)
+        .update<Baby>(id, toPayload(input), { requestKey: null })
       setBabies((prev) => sortByCreated(prev.map((b) => (b.id === id ? record : b))))
     } catch (err) {
-      console.error('Baby konnte nicht umbenannt werden', err)
-      toast.error('Baby konnte nicht umbenannt werden.')
+      console.error('Baby konnte nicht gespeichert werden', err)
+      toast.error('Baby konnte nicht gespeichert werden.')
       throw err
     }
   }, [])
@@ -83,5 +95,5 @@ export function useBabies() {
     }
   }, [])
 
-  return { babies, isLoading, createBaby, renameBaby, deleteBaby }
+  return { babies, isLoading, createBaby, updateBaby, deleteBaby }
 }

@@ -54,7 +54,12 @@ export function StillView({ babyId, wide, targetIntervalHours }: StillViewProps)
       </TabsList>
 
       <TabsContent value="erfassung" className="flex flex-col gap-4">
-        <FeedingTimer babyId={babyId} lastWeight={lastWeight} onSave={createFeeding} />
+        <FeedingTimer
+          babyId={babyId}
+          lastWeight={lastWeight}
+          lastEnd={feedings[0]?.end ?? null}
+          onSave={createFeeding}
+        />
 
         <div className="flex items-center justify-between">
           <h2 className="font-heading text-base font-medium">Erfasste Mahlzeiten</h2>

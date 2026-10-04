@@ -15,7 +15,11 @@ import {
 } from '@/components/ui/alert-dialog'
 import { FeedingForm } from '@/components/FeedingForm'
 import { formatDay, formatHoursMinutes, formatMl, formatTime } from '@/lib/format'
-import { BREAST_LABELS, lastBreast, type Feeding, type FeedingDraft } from '@/types/feeding'
+import { BREAST_LABELS, breastUsage, lastBreast, type Feeding, type FeedingDraft } from '@/types/feeding'
+
+function capitalize(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1)
+}
 
 interface FeedingListItemProps {
   feeding: Feeding
@@ -35,7 +39,13 @@ export function FeedingListItem({
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const breast = lastBreast(feeding)
-
+  const usage = breastUsage(feeding)
+  const breastLabel =
+    usage === 'both' && breast
+      ? `Brust: Beide, zuletzt ${capitalize(BREAST_LABELS[breast])}`
+      : usage && usage !== 'both'
+        ? `Brust: ${capitalize(BREAST_LABELS[usage])}`
+        : null
   async function handleDelete() {
     setIsDeleting(true)
     try {
@@ -64,7 +74,7 @@ export function FeedingListItem({
           )}
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
-          {breast && <Badge variant="outline">Letzte Brust: {BREAST_LABELS[breast]}</Badge>}
+          {breastLabel && <Badge variant="outline">{breastLabel}</Badge>}
           {feeding.supplement_mm_ml > 0 && (
             <Badge variant="outline">MM {formatMl(feeding.supplement_mm_ml)}</Badge>
           )}
