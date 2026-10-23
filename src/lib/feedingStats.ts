@@ -1,4 +1,10 @@
-import { breastUsage, lastBreast, type BreastSide, type Feeding } from '@/types/feeding'
+import {
+  breastUsage,
+  isMeal,
+  lastBreast,
+  type BreastSide,
+  type Feeding,
+} from '@/types/feeding'
 
 const MS_PER_MIN = 60_000
 
@@ -132,26 +138,53 @@ export interface WeightPoint {
   weight: number
 }
 
+export interface HeightPoint {
+  timestamp: number
+  height: number
+}
+
+type MeasureMode = 'entry' | 'day'
+
+/** Werte-Verlauf aus allen Einträgen (Mahlzeiten und Messungen) mit erfasstem Wert (> 0). */
+function buildMeasureSeries(
+  feedings: Feeding[],
+  pick: (f: Feeding) => number,
+  mode: MeasureMode,
+): { timestamp: number; value: number }[] {
+  const withValue = chronological(feedings).filter((f) => pick(f) > 0)
+  if (mode === 'day') {
+    const byDay = new Map<string, { timestamp: number; value: number }>()
+    for (const f of withValue) {
+      const start = new Date(f.start)
+      byDay.set(dayKey(start), { timestamp: startOfLocalDay(start).getTime(), value: pick(f) })
+    }
+    return [...byDay.values()]
+  }
+  const points: { timestamp: number; value: number }[] = []
+  for (const f of withValue) {
+    if (points.length > 0 && points[points.length - 1].value === pick(f)) continue
+    points.push({ timestamp: new Date(f.start).getTime(), value: pick(f) })
+  }
+  return points
+}
+
 /**
  * Gewichtsverlauf. `entry`: nur Einträge, an denen sich das Gewicht geändert hat
  * (das Formular übernimmt sonst immer den letzten Wert); `day`: letzter Wert je Tag.
  */
-export function buildWeightSeries(feedings: Feeding[], mode: 'entry' | 'day'): WeightPoint[] {
-  const withWeight = chronological(feedings).filter((f) => f.weight_g > 0)
-  if (mode === 'day') {
-    const byDay = new Map<string, WeightPoint>()
-    for (const f of withWeight) {
-      const start = new Date(f.start)
-      byDay.set(dayKey(start), { timestamp: startOfLocalDay(start).getTime(), weight: f.weight_g })
-    }
-    return [...byDay.values()]
-  }
-  const points: WeightPoint[] = []
-  for (const f of withWeight) {
-    if (points.length > 0 && points[points.length - 1].weight === f.weight_g) continue
-    points.push({ timestamp: new Date(f.start).getTime(), weight: f.weight_g })
-  }
-  return points
+export function buildWeightSeries(feedings: Feeding[], mode: MeasureMode): WeightPoint[] {
+  return buildMeasureSeries(feedings, (f) => f.weight_g, mode).map((p) => ({
+    timestamp: p.timestamp,
+    weight: p.value,
+  }))
+}
+
+/** Größenverlauf, gleiche Modi wie beim Gewicht. */
+export function buildHeightSeries(feedings: Feeding[], mode: MeasureMode): HeightPoint[] {
+  return buildMeasureSeries(feedings, (f) => f.height_cm, mode).map((p) => ({
+    timestamp: p.timestamp,
+    height: p.value,
+  }))
 }
 
 export type HourMetric = 'count' | 'supplement' | 'latch'
@@ -196,14 +229,19 @@ export interface FeedingKpis {
   avgIntervalMinYesterday: number | null
   currentWeight: number | null
   firstWeight: number | null
+  currentHeight: number | null
+  firstHeight: number | null
 }
 
 /** Live-Abstand zur letzten Mahlzeit plus Summen für den gestrigen Kalendertag (00:00–23:59). */
-export function computeFeedingKpis(feedings: Feeding[], now: Date): FeedingKpis {
-  const sorted = chronological(feedings)
+export function computeFeedingKpis(allEntries: Feeding[], now: Date): FeedingKpis {
+  const sorted = chronological(allEntries.filter(isMeal))
   const last = sorted[sorted.length - 1] ?? null
   const { from, to } = localDayRange(now, 1)
-  const weights = sorted.filter((f) => f.weight_g > 0)
+  // Gewicht/Größe stammen aus Mahlzeiten und reinen Messungen.
+  const measured = chronological(allEntries)
+  const weights = measured.filter((f) => f.weight_g > 0)
+  const heights = measured.filter((f) => f.height_cm > 0)
 
   const inDay = (f: Feeding) => {
     const start = new Date(f.start).getTime()
@@ -230,6 +268,8 @@ export function computeFeedingKpis(feedings: Feeding[], now: Date): FeedingKpis 
       gaps.length > 0 ? gaps.reduce((total, g) => total + g, 0) / gaps.length : null,
     currentWeight: weights[weights.length - 1]?.weight_g ?? null,
     firstWeight: weights[0]?.weight_g ?? null,
+    currentHeight: heights[heights.length - 1]?.height_cm ?? null,
+    firstHeight: heights[0]?.height_cm ?? null,
   }
 }
 

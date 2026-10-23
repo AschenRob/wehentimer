@@ -53,6 +53,10 @@ export function formatGrams(grams: number): string {
   return `${integerFormatter.format(grams)} g`
 }
 
+export function formatCm(cm: number): string {
+  return `${decimalFormatter.format(cm)} cm`
+}
+
 /** Minuten -> "45 Min" bzw. "2 Std 15 Min" (für Abstände zwischen Mahlzeiten). */
 export function formatHoursMinutes(totalMinutes: number): string {
   const rounded = Math.max(0, Math.round(totalMinutes))

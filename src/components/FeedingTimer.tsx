@@ -23,13 +23,14 @@ function isPendingRange(value: unknown): value is PendingRange | null {
 interface FeedingTimerProps {
   babyId: string
   lastWeight: number
+  lastHeight: number
   /** Ende der letzten Mahlzeit (ISO) für "Zeit seit der letzten Mahlzeit". */
   lastEnd: string | null
   onSave: (draft: FeedingDraft) => Promise<unknown>
 }
 
 /** Start/Stop für eine Mahlzeit; nach Stop wird der Eintrag im Dialog ergänzt und erst dann gespeichert. */
-export function FeedingTimer({ babyId, lastWeight, lastEnd, onSave }: FeedingTimerProps) {
+export function FeedingTimer({ babyId, lastWeight, lastHeight, lastEnd, onSave }: FeedingTimerProps) {
   const now = useNow(10_000)
   const [startedAtIso, setStartedAtIso] = usePersistentState<string | null>(
     `feedingTimerStart.${babyId}`,
@@ -107,6 +108,7 @@ export function FeedingTimer({ babyId, lastWeight, lastEnd, onSave }: FeedingTim
         mode="complete"
         timerRange={pending ?? undefined}
         lastWeight={lastWeight}
+        lastHeight={lastHeight}
         open={pending !== null}
         onOpenChange={(open) => {
           if (!open) setPending(null)

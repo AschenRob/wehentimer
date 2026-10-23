@@ -50,8 +50,8 @@ const METRIC_BARS: Record<
     { key: 'emMl', name: 'Ersatzmilch (EM)', color: 'var(--chart-1)', unit: ' ml' },
   ],
   diapers: [
-    { key: 'urine', name: 'Urin', color: 'var(--urine)', unit: '' },
-    { key: 'stool', name: 'Stuhl', color: 'var(--stool)', unit: '' },
+    { key: 'urine', name: 'Pipi', color: 'var(--urine)', unit: '' },
+    { key: 'stool', name: 'Kaka', color: 'var(--stool)', unit: '' },
   ],
   woke: [
     { key: 'wokeSelf', name: 'Von selbst', color: 'var(--chart-2)', unit: '' },

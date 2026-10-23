@@ -8,9 +8,13 @@ export const BREAST_LABELS: Record<BreastSecond, string> = {
   none: 'keine',
 }
 
+/** `measurement` = reiner Größe/Gewicht-Eintrag; leer (Altdaten) zählt als Mahlzeit. */
+export type FeedingKind = 'meal' | 'measurement' | ''
+
 export interface Feeding {
   id: string
   baby: string
+  kind: FeedingKind
   start: string // ISO datetime
   /** Ende der Mahlzeit (Timer-Stop oder manuell). */
   end: string // ISO datetime
@@ -25,6 +29,8 @@ export interface Feeding {
   stool: boolean
   /** Gewicht in Gramm, 0 = nicht erfasst. */
   weight_g: number
+  /** Größe in cm, 0 = nicht erfasst. */
+  height_cm: number
   note?: string
   is_manual: boolean
   /** 1. Brust; leer bei Einträgen ohne Angabe. */
@@ -71,7 +77,19 @@ export const FEEDING_DEFAULTS = {
 /** Vorbelegung für den allerersten Eintrag. */
 export const DEFAULT_FIRST_WEIGHT_G = 3500
 
+/** Vorbelegung der Größe (cm) für den allerersten Eintrag. */
+export const DEFAULT_FIRST_HEIGHT_CM = 50
+
+export function isMeal(feeding: Feeding): boolean {
+  return feeding.kind !== 'measurement'
+}
+
 /** Gewicht des jüngsten Eintrags mit erfasstem Gewicht (Liste ist neueste zuerst). */
 export function latestWeight(feedings: Feeding[]): number {
   return feedings.find((f) => f.weight_g > 0)?.weight_g ?? DEFAULT_FIRST_WEIGHT_G
+}
+
+/** Größe des jüngsten Eintrags mit erfasster Größe (Liste ist neueste zuerst). */
+export function latestHeight(feedings: Feeding[]): number {
+  return feedings.find((f) => f.height_cm > 0)?.height_cm ?? DEFAULT_FIRST_HEIGHT_CM
 }

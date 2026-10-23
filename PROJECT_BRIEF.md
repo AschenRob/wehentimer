@@ -118,19 +118,28 @@ Projektstruktur (Repo-Root = Vite-App-Root, analog `otherApp`):
 - Spalten analog zum Still-Protokoll der Hebamme: Start, Ende der Mahlzeit,
   angelegt Minuten (mit Start/Ende verknüpft), von selbst aufgewacht, Brust
   (1. Brust links/rechts, 2. Brust links/rechts/keine), zugefüttert MM und EM
-  (ml, getrennt, Standard 0), Urin, Stuhl, Gewicht (g), Besonderheiten.
+  (ml, getrennt, Standard 0), Pipi, Kaka, Gewicht (g), Größe (cm), Besonderheiten.
+- **Größe/Gewicht ohne Mahlzeit:** Der Plus-Button fragt zuerst „Mahlzeit“ oder „Größe / Gewicht“.
+  Letzteres ist ein eigener Eintrag (`feedings.kind = measurement`, Start = Ende = Messzeitpunkt) mit
+  nur Zeitpunkt, Größe und/oder Gewicht und Notiz. In der Liste unterscheidet ein Icon links
+  (Fläschchen = Mahlzeit, Maßband = Größe/Gewicht). Messungen fließen nur in Gewicht-/Größenverlauf
+  und KPI-Karte ein, nicht in Mahlzeiten-Statistiken (Anzahl, Abstände, Rhythmus, Windeln).
+  Größe und Gewicht werden in beiden Dialogen mit dem letzten Wert vorbelegt (erstmals 50 cm / 3.500 g).
 - Start/Stop-Timer; nach Stop öffnet ein Dialog mit Standardwerten
-  (aufgewacht ja, Brust links/keine, Zufütterung 0 ml, Urin/Stuhl nein, Gewicht
-  des letzten Eintrags bzw. 3.500 g beim allerersten). Gespeichert wird erst
+  aufgewacht ja, Brust links/keine, Zufütterung 0 ml, Pipi/Kaka nein, Gewicht und Größe
+  des letzten Eintrags, beim allerersten 3.500 g / 50 cm). Gespeichert wird erst
   beim Bestätigen, Verwerfen nur nach Warnung.
 - Abstand zwischen Mahlzeiten = Ende der vorherigen bis Start der nächsten.
 - Auswertung: KPI-Karte (Live-Abstand + Summen für gestern 00:00–23:59),
   Tagesrhythmus, Pro Tag, Verlauf je Mahlzeit (Y-Max, Soll-Linie), Nach
-  Tageszeit, Gewichtsverlauf — mit Dropdowns zur Konfiguration.
+  Tagesrhythmus, Pro Tag, Verlauf je Mahlzeit (Y-Max, Soll-Linie), Nach
+  Tageszeit, Gewichtsverlauf (mit WHO-Kurven Normgewicht P50 sowie Grenzwerte P3/P97 je
+  Geschlecht, `lib/whoWeight.ts`; nötig: Geschlecht + Geburtsdatum bzw. ET) und Größenverlauf
+  (analog, WHO Length-for-age, `lib/whoHeight.ts`, eigene Y-Skala) — mit Dropdowns zur Konfiguration.
 - Layout „Desktop / TV“ (Einstellungen, pro Gerät): volle Breite, Charts zweispaltig.
 - Unter dem Start/Stop-Button: „Zeit seit der letzten Mahlzeit: H:MM“ (ab Ende der letzten Mahlzeit).
 - Brust-Sticker in der Liste: „Brust: Links“, „Brust: Rechts“, „Brust: Beide, zuletzt Links/Rechts“.
-- Tagesrhythmus: Farbmodus „Windeln“ (Urin ocker, Stuhl dunkelbraun, beides geteilt); die
+- Tagesrhythmus: Farbmodus „Windeln“ (Pipi ocker, Kaka dunkelbraun, beides geteilt); die
   Nachtzeit 23–5 Uhr ist hellblau hinterlegt.
 
 ### Ansicht „Sprünge und Schlaf“ (Burger-Menü), drei Tabs
@@ -227,10 +236,13 @@ weiter).
    - `baby` (Relation → `babies`, required, cascadeDelete)
    - `start`, `end` (Date, required) — `end` = Ende der Mahlzeit
    - `latch_minutes` (Number) — angelegt Minuten
-   - `woke_self`, `urine`, `stool`, `is_manual` (Bool)
+   - `woke_self`, `urine` (UI: „Pipi“), `stool` (UI: „Kaka“), `is_manual` (Bool)
    - `breast_first` (Select left/right), `breast_second` (Select left/right/none);
      leer bei Einträgen vor der Brust-Erfassung
-   - `supplement_mm_ml`, `supplement_em_ml`, `weight_g` (Number, 0 = keine Angabe)
+   - `supplement_mm_ml`, `supplement_em_ml`, `weight_g` (Number, 0 = keine Angabe),
+     `height_cm` (Number, 0 = keine Angabe)
+   - `kind` (Select meal/measurement; leer = Mahlzeit). `measurement` = reiner Größe/Gewicht-
+     Eintrag mit `start = end`, alle Mahlzeit-Felder leer/0; Mahlzeiten-Auswertungen filtern ihn heraus
    - `note` (Text, max. 500) — Besonderheiten
 
 4. **`babies`** — `name` (Text, required, max 60), `due_date` (Date, ET), `birth_date` (Date, nur

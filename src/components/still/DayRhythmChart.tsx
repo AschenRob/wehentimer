@@ -51,9 +51,9 @@ const LEGENDS: Record<ColorMode, { label: string; color: string }[]> = {
     { label: 'keine Angabe', color: 'var(--chart-5)' },
   ],
   diaper: [
-    { label: 'Urin', color: URINE_COLOR },
-    { label: 'Stuhl', color: STOOL_COLOR },
-    { label: 'Urin + Stuhl', color: BOTH_DIAPER_COLOR },
+    { label: 'Pipi', color: URINE_COLOR },
+    { label: 'Kaka', color: STOOL_COLOR },
+    { label: 'Pipi + Kaka', color: BOTH_DIAPER_COLOR },
     { label: 'keine Windel', color: 'var(--chart-5)' },
   ],
   plain: [],

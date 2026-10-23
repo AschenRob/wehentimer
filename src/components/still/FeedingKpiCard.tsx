@@ -1,6 +1,13 @@
-import { Clock3, Scale } from 'lucide-react'
+import { Clock3, Ruler, Scale } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { formatDay, formatDecimal, formatGrams, formatHoursMinutes, formatTime } from '@/lib/format'
+import {
+  formatCm,
+  formatDay,
+  formatDecimal,
+  formatGrams,
+  formatHoursMinutes,
+  formatTime,
+} from '@/lib/format'
 import type { FeedingKpis } from '@/lib/feedingStats'
 import { BREAST_LABELS } from '@/types/feeding'
 
@@ -27,6 +34,10 @@ export function FeedingKpiCard({ kpis, wide = false }: FeedingKpiCardProps) {
       : null
   const weightDeltaPct =
     weightDelta != null && kpis.firstWeight ? (weightDelta / kpis.firstWeight) * 100 : null
+  const heightDelta =
+    kpis.currentHeight != null && kpis.firstHeight != null
+      ? kpis.currentHeight - kpis.firstHeight
+      : null
 
   const weight = (
     <div
@@ -44,6 +55,17 @@ export function FeedingKpiCard({ kpis, wide = false }: FeedingKpiCardProps) {
           {weightDelta > 0 ? '+' : '−'}
           {formatGrams(Math.abs(weightDelta))} ({weightDelta > 0 ? '+' : '−'}
           {formatDecimal(Math.abs(weightDeltaPct))} %) seit erstem Eintrag
+        </span>
+      )}
+      {kpis.currentHeight != null && (
+        <span className="flex items-center gap-1.5">
+          <Ruler className="size-4 text-primary" />
+          {formatCm(kpis.currentHeight)}
+          {heightDelta != null && heightDelta > 0 && (
+            <span className="text-muted-foreground">
+              (+{formatDecimal(heightDelta)} cm seit erstem Eintrag)
+            </span>
+          )}
         </span>
       )}
     </div>
@@ -87,7 +109,7 @@ export function FeedingKpiCard({ kpis, wide = false }: FeedingKpiCardProps) {
           }
         />
         <Kpi label="Angelegt gesamt" value={formatHoursMinutes(kpis.latchYesterday)} />
-        <Kpi label="Windeln Urin / Stuhl" value={`${kpis.urineYesterday} / ${kpis.stoolYesterday}`} />
+        <Kpi label="Windeln Pipi / Kaka" value={`${kpis.urineYesterday} / ${kpis.stoolYesterday}`} />
       </dl>
 
       {!wide && weight}

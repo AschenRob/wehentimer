@@ -106,6 +106,32 @@ Erweiterung 2026-10-04 (noch nicht deployt, neue Migrationen `1790000080`/`90`):
   geschätzte Richtwerte aus dem Modell, nicht aus einer abrufbaren Quelle verifiziert — bei Bedarf in
   `lib/jumps.ts` nachjustieren. Migrationen lokal gegen Scratch-PocketBase verifiziert.
 
+Erweiterung 2026-10-13 (noch nicht deployt, keine Migration):
+- **Gewichtsverlauf mit WHO-Kurven:** `lib/whoWeight.ts` (WHO Child Growth Standards Gewicht-für-Alter,
+  wochenweise aus den LMS-Tabellen berechnet, 0–24 Monate, nach Geschlecht). Im Chart zusätzlich
+  Normgewicht (P50, durchgezogen) sowie unterer/oberer Grenzwert (P3/P97, gestrichelt) über den
+  sichtbaren Zeitraum. Alter ab `birth_date`, ersatzweise `due_date`; ohne Geschlecht keine Kurven.
+- **Y-Skala-Dropdown im Gewichtsverlauf** (pro Gerät `wehentimer.still.weightYScale`): Auto (inkl.
+  Normbereich, Standard), „Nur Gewichte“ (Skala wie vor den WHO-Kurven, Kurven werden abgeschnitten)
+  oder fester Bereich 2–5/2–8/2–12/0–15 kg (`WEIGHT_Y_SCALE_*` in `lib/chartRange.ts`).
+
+Erweiterung 2026-10-23 (noch nicht deployt, neue Migration `1790000100`):
+- **Größe:** `feedings.height_cm` (0 = keine Angabe), Feld im Mahlzeit-Dialog (wie Gewicht mit letztem
+  Wert vorbelegt, erstmals 50 cm; `latestHeight()`). **Größenverlauf** (`still/HeightChart.tsx`) analog
+  Gewichtsverlauf: Darstellung „Jede Änderung“/„Pro Tag“, Y-Skala-Dropdown (`HEIGHT_Y_SCALE_*`,
+  pro Gerät `wehentimer.still.heightYScale`), WHO-Kurven P3/P50/P97 (`lib/whoHeight.ts`, Length-for-age
+  0–24 Monate, wöchentlich aus den offiziellen LMS-Tabellen berechnet; Interpolation gemeinsam mit
+  Gewicht über `interpolateWhoRows` in `lib/whoWeight.ts`). KPI-Karte zeigt aktuelle Größe.
+- **Eintragsart:** `feedings.kind` (meal/measurement; leer = Mahlzeit, `isMeal()` in `types/feeding.ts`).
+  Plus-Button (`AddEntryButton`) fragt Mahlzeit vs. Größe/Gewicht; Letzteres öffnet `MeasurementForm`
+  (Zeitpunkt, Größe, Gewicht, Notiz; Start = Ende). Liste: Icon links (Milk = Mahlzeit, Ruler =
+  Messung), Überschrift „Erfasste Einträge“. **Messungen werden in `StillView` aus allen Mahlzeiten-Charts
+  und in `computeFeedingKpis` aus Mahlzeit-Summen/Abständen herausgefiltert**, fließen aber in
+  Gewicht/Größe ein; Abstand in der Liste bezieht sich auf die vorherige *Mahlzeit*; „Zeit seit letzter
+  Mahlzeit“ ignoriert Messungen. Neue Auswertungen, die Mahlzeiten zählen, müssen `isMeal` filtern.
+- UI-Umbenennung: „Urin“ → „Pipi“, „Stuhl“ → „Kaka“ (nur Beschriftungen; Felder `urine`/`stool` und
+  CSS-Variablen unverändert). Migration lokal gegen Scratch-PocketBase verifiziert.
+
 ## 2. Lokal starten
 
 Zwei Terminals, **bewusst andere Ports als otherApp** (dort 5173/8090):
@@ -243,6 +269,6 @@ unbehandelten Fehler fehlschlagen (bereits gefixt, s.u.).
   über `http://<NAS-LAN-IP>:8092/_/` erreichbar (umgeht NPM/Hairpin).
 - Für Updates nach der Ersteinrichtung: `prepare-deploy.ps1` ausführen,
   `deploy/`-Inhalt aufs NAS hochladen (siehe INITIAL_DEPLOYMENT.md
-  Abschnitt 10). Die neuen Migrationen (`1790000020` bis `1790000090`) laufen
+  Abschnitt 10). Die neuen Migrationen (`1790000020` bis `1790000100`) laufen
   beim Neustart des PocketBase-Containers automatisch (vorher Backup, siehe
   DEPLOYMENT.md; `1790000050` ordnet alle Altdaten „Baby 1“ zu).

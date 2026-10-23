@@ -142,7 +142,7 @@ function App() {
       {view === 'still' && (
         <StillView
           key={activeBaby.id}
-          babyId={activeBaby.id}
+          baby={activeBaby}
           wide={isDesktop}
           targetIntervalHours={targetIntervalHours}
         />

@@ -82,3 +82,45 @@ export const INTERVAL_Y_MAX_LABELS: Record<IntervalYMax, string> = {
   '8': 'Y-Max: 8 Std',
   '12': 'Y-Max: 12 Std',
 }
+
+/** Y-Skala im Gewichtsverlauf: Auto inkl. Normbereich, nur Gewichte, oder fester Bereich in kg. */
+export type WeightYScale = 'auto' | 'data' | '2-5' | '2-8' | '2-12' | '0-15'
+
+export const WEIGHT_Y_SCALE_OPTIONS = [
+  'auto',
+  'data',
+  '2-5',
+  '2-8',
+  '2-12',
+  '0-15',
+] as const satisfies WeightYScale[]
+
+export const WEIGHT_Y_SCALE_LABELS: Record<WeightYScale, string> = {
+  auto: 'Y: Auto (mit Normbereich)',
+  data: 'Y: Nur Gewichte',
+  '2-5': 'Y: 2–5 kg',
+  '2-8': 'Y: 2–8 kg',
+  '2-12': 'Y: 2–12 kg',
+  '0-15': 'Y: 0–15 kg',
+}
+
+/** Y-Skala im Größenverlauf: Auto inkl. Normbereich, nur Größen, oder fester Bereich in cm. */
+export type HeightYScale = 'auto' | 'data' | '45-65' | '45-80' | '45-100' | '40-100'
+
+export const HEIGHT_Y_SCALE_OPTIONS = [
+  'auto',
+  'data',
+  '45-65',
+  '45-80',
+  '45-100',
+  '40-100',
+] as const satisfies HeightYScale[]
+
+export const HEIGHT_Y_SCALE_LABELS: Record<HeightYScale, string> = {
+  auto: 'Y: Auto (mit Normbereich)',
+  data: 'Y: Nur Größen',
+  '45-65': 'Y: 45–65 cm',
+  '45-80': 'Y: 45–80 cm',
+  '45-100': 'Y: 45–100 cm',
+  '40-100': 'Y: 40–100 cm',
+}

@@ -38,6 +38,11 @@ function toNonNegative(value: string): number {
   return Number.isFinite(n) ? Math.max(0, n) : 0
 }
 
+/** 0 = nicht erfasst -> leeres Feld. */
+function toFieldValue(value: number | undefined): string {
+  return value && value > 0 ? String(value) : ''
+}
+
 interface YesNoFieldProps {
   label: string
   value: boolean
@@ -112,6 +117,7 @@ interface FeedingFormProps {
   feeding?: Feeding
   timerRange?: { start: string; end: string }
   lastWeight: number
+  lastHeight: number
   onSubmit: (draft: FeedingDraft) => Promise<unknown>
   trigger?: ReactElement
   open?: boolean
@@ -129,6 +135,7 @@ export function FeedingForm({
   feeding,
   timerRange,
   lastWeight,
+  lastHeight,
   onSubmit,
   trigger,
   open: openProp,
@@ -150,7 +157,8 @@ export function FeedingForm({
   const [emMl, setEmMl] = useState<number>(FEEDING_DEFAULTS.supplement_em_ml)
   const [urine, setUrine] = useState<boolean>(FEEDING_DEFAULTS.urine)
   const [stool, setStool] = useState<boolean>(FEEDING_DEFAULTS.stool)
-  const [weightG, setWeightG] = useState(0)
+  const [weightStr, setWeightStr] = useState('')
+  const [heightStr, setHeightStr] = useState('')
   const [note, setNote] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -173,7 +181,8 @@ export function FeedingForm({
       setEmMl(feeding.supplement_em_ml)
       setUrine(feeding.urine)
       setStool(feeding.stool)
-      setWeightG(feeding.weight_g)
+      setWeightStr(toFieldValue(feeding.weight_g))
+      setHeightStr(toFieldValue(feeding.height_cm))
       setNote(feeding.note ?? '')
     } else {
       const end = timerRange ? new Date(timerRange.end) : new Date()
@@ -190,11 +199,12 @@ export function FeedingForm({
       setEmMl(FEEDING_DEFAULTS.supplement_em_ml)
       setUrine(FEEDING_DEFAULTS.urine)
       setStool(FEEDING_DEFAULTS.stool)
-      setWeightG(lastWeight)
+      setWeightStr(toFieldValue(lastWeight))
+      setHeightStr(toFieldValue(lastHeight))
       setNote('')
     }
     setError(null)
-  }, [open, feeding, timerRange, lastWeight])
+  }, [open, feeding, timerRange, lastWeight, lastHeight])
 
   const start = parseDateAndTime(startDateStr, startTimeStr)
   const end = start ? new Date(start.getTime() + durationSec * 1000) : null
@@ -231,6 +241,7 @@ export function FeedingForm({
     setIsSaving(true)
     try {
       await onSubmit({
+        kind: 'meal',
         start: start.toISOString(),
         end: new Date(start.getTime() + durationSec * 1000).toISOString(),
         latch_minutes: latchMinutes,
@@ -241,7 +252,8 @@ export function FeedingForm({
         breast_second: breastSecond,
         urine,
         stool,
-        weight_g: weightG,
+        weight_g: Math.round(toNonNegative(weightStr)),
+        height_cm: Math.round(toNonNegative(heightStr) * 10) / 10,
         note: note.trim() || undefined,
         is_manual: mode === 'edit' ? (feeding?.is_manual ?? true) : mode === 'create',
       })
@@ -368,22 +380,36 @@ export function FeedingForm({
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <YesNoField label="Urin" value={urine} onChange={setUrine} />
-            <YesNoField label="Stuhl" value={stool} onChange={setStool} />
+            <YesNoField label="Pipi" value={urine} onChange={setUrine} />
+            <YesNoField label="Kaka" value={stool} onChange={setStool} />
           </div>
 
-          <div className="grid gap-2">
-            <Label htmlFor="feeding-weight">Gewicht (g)</Label>
-            <Input
-              id="feeding-weight"
-              type="number"
-              min={0}
-              inputMode="numeric"
-              value={weightG}
-              onChange={(e) => setWeightG(toNonNegative(e.target.value))}
-              onFocus={selectAllOnFocus}
-              className="w-32"
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-2">
+              <Label htmlFor="feeding-weight">Gewicht (g)</Label>
+              <Input
+                id="feeding-weight"
+                type="number"
+                min={0}
+                inputMode="numeric"
+                value={weightStr}
+                onChange={(e) => setWeightStr(e.target.value)}
+                onFocus={selectAllOnFocus}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="feeding-height">Größe (cm)</Label>
+              <Input
+                id="feeding-height"
+                type="number"
+                min={0}
+                step={0.1}
+                inputMode="decimal"
+                value={heightStr}
+                onChange={(e) => setHeightStr(e.target.value)}
+                onFocus={selectAllOnFocus}
+              />
+            </div>
           </div>
 
           <div className="grid gap-2">

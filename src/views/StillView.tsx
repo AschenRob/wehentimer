@@ -1,14 +1,14 @@
 import { BarChart3, Milk } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Button } from '@/components/ui/button'
 import { FeedingTimer } from '@/components/FeedingTimer'
-import { FeedingForm } from '@/components/FeedingForm'
+import { AddEntryButton } from '@/components/AddEntryButton'
 import { FeedingList } from '@/components/FeedingList'
 import { OptionSelect } from '@/components/charts/OptionSelect'
 import { FeedingKpiCard } from '@/components/still/FeedingKpiCard'
 import { DailyChart } from '@/components/still/DailyChart'
 import { FeedingTrendChart } from '@/components/still/FeedingTrendChart'
 import { WeightChart } from '@/components/still/WeightChart'
+import { HeightChart } from '@/components/still/HeightChart'
 import { DayRhythmChart } from '@/components/still/DayRhythmChart'
 import { HourDistributionChart } from '@/components/still/HourDistributionChart'
 import { useFeedings } from '@/hooks/useFeedings'
@@ -22,16 +22,18 @@ import {
 } from '@/lib/chartRange'
 import { computeFeedingKpis } from '@/lib/feedingStats'
 import { cn } from '@/lib/utils'
-import { latestWeight } from '@/types/feeding'
+import type { Baby } from '@/types/baby'
+import { isMeal, latestHeight, latestWeight } from '@/types/feeding'
 
 interface StillViewProps {
-  babyId: string
+  baby: Baby
   /** Desktop/TV: Charts zweispaltig, KPI-Karte breiter. */
   wide: boolean
   targetIntervalHours: number
 }
 
-export function StillView({ babyId, wide, targetIntervalHours }: StillViewProps) {
+export function StillView({ baby, wide, targetIntervalHours }: StillViewProps) {
+  const babyId = baby.id
   const { feedings, isLoading, createFeeding, updateFeeding, deleteFeeding } = useFeedings(babyId)
   const now = useNow()
   const [chartRange, setChartRange] = usePersistentState<ChartRange>(
@@ -40,7 +42,11 @@ export function StillView({ babyId, wide, targetIntervalHours }: StillViewProps)
     oneOf(FEEDING_RANGE_OPTIONS),
   )
   const lastWeight = latestWeight(feedings)
+  const lastHeight = latestHeight(feedings)
   const chartFeedings = filterByChartRange(feedings, chartRange, now)
+  // Reine Größe/Gewicht-Einträge dürfen die Mahlzeiten-Charts nicht verfälschen.
+  const chartMeals = chartFeedings.filter(isMeal)
+  const lastMealEnd = feedings.find(isMeal)?.end ?? null
 
   return (
     <Tabs defaultValue="erfassung" className="flex-1">
@@ -57,25 +63,17 @@ export function StillView({ babyId, wide, targetIntervalHours }: StillViewProps)
         <FeedingTimer
           babyId={babyId}
           lastWeight={lastWeight}
-          lastEnd={feedings[0]?.end ?? null}
+          lastHeight={lastHeight}
+          lastEnd={lastMealEnd}
           onSave={createFeeding}
         />
 
         <div className="flex items-center justify-between">
-          <h2 className="font-heading text-base font-medium">Erfasste Mahlzeiten</h2>
-          <FeedingForm
-            mode="create"
+          <h2 className="font-heading text-base font-medium">Erfasste Einträge</h2>
+          <AddEntryButton
             lastWeight={lastWeight}
+            lastHeight={lastHeight}
             onSubmit={createFeeding}
-            trigger={
-              <Button
-                size="icon"
-                className="size-10 rounded-full"
-                aria-label="Mahlzeit manuell eintragen"
-              >
-                <span className="text-xl leading-none">+</span>
-              </Button>
-            }
           />
         </div>
 
@@ -83,6 +81,7 @@ export function StillView({ babyId, wide, targetIntervalHours }: StillViewProps)
           feedings={feedings}
           isLoading={isLoading}
           lastWeight={lastWeight}
+          lastHeight={lastHeight}
           onUpdate={updateFeeding}
           onDelete={deleteFeeding}
         />
@@ -103,11 +102,12 @@ export function StillView({ babyId, wide, targetIntervalHours }: StillViewProps)
         </div>
 
         <div className={cn('grid gap-4 *:min-w-0', wide && 'grid-cols-2')}>
-          <DayRhythmChart feedings={chartFeedings} now={now} />
-          <DailyChart feedings={chartFeedings} />
-          <FeedingTrendChart feedings={chartFeedings} targetIntervalHours={targetIntervalHours} />
-          <HourDistributionChart feedings={chartFeedings} />
-          <WeightChart feedings={chartFeedings} />
+          <DayRhythmChart feedings={chartMeals} now={now} />
+          <DailyChart feedings={chartMeals} />
+          <FeedingTrendChart feedings={chartMeals} targetIntervalHours={targetIntervalHours} />
+          <HourDistributionChart feedings={chartMeals} />
+          <WeightChart feedings={chartFeedings} baby={baby} />
+          <HeightChart feedings={chartFeedings} baby={baby} />
         </div>
       </TabsContent>
     </Tabs>
